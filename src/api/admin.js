@@ -603,11 +603,15 @@ export function registerAdminRoutes(app) {
   });
 
   // --- Overlay ---------------------------------------------------------------------
-  r.get('/api/admin/overlay', () => app.overlaySettings.all());
+  // Formato delle versioni precedenti: legge/modifica il tema attivo (vedi anche src/api/overlay.js).
+  r.get('/api/admin/overlay', () => app.themes.effective());
   r.put('/api/admin/overlay', async (ctx) => {
-    const out = validateOverlay(await readJson(ctx.req), app.overlaySettings);
-    for (const [k, val] of Object.entries(out)) app.overlaySettings.set(k, val);
-    const all = app.overlaySettings.all();
+    const body = await readJson(ctx.req);
+    const out = validateOverlay(body, { get: (k) => app.themes.effective()[k] });
+    // Dimensioni della sorgente OBS: informazione di configurazione, non del tema.
+    if (out.layout) app.overlaySettings.set('layout', { ...app.overlaySettings.get('layout'), width: out.layout.width, height: out.layout.height });
+    app.themes.applyLegacy(out);
+    const all = app.themes.effective();
     app.hub.overlay('settings', all);
     return all;
   });

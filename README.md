@@ -311,10 +311,80 @@ Rarità iniziale: Mitico / Leggendario da PokéAPI; per gli altri dal *capture r
 
 1. In OBS: **Sorgenti → + → Browser**.
 2. URL: `http://IP-DEL-SERVER:8788/overlay` (es. `http://192.168.1.50:8788/overlay`). Su Windows usa l'**IP** invece di `umbrel.local`.
-3. Larghezza `1920`, altezza `1080` (o quelle impostate in **Overlay**).
+3. Larghezza `1920` e altezza `1080`, oppure `1280` × `720`. L'overlay disegna tutto su una tela 1920×1080 e la scala alla dimensione della sorgente, quindi l'aspetto è identico.
 4. Spunta *Aggiorna il browser quando la scena diventa attiva*. Lo sfondo è già trasparente.
 
-Quando non sei in diretta l'overlay è vuoto. Per provarlo usa la **Modalità DEMO** oppure i pulsanti di anteprima nella sezione **Overlay**.
+**Dopo un aggiornamento dell'app**: OBS conserva in cache i file della pagina. Apri le proprietà della sorgente Browser e premi **Aggiorna la cache della pagina corrente** (oppure rimuovi e ricrea la sorgente). Senza questo passaggio la sorgente può continuare a usare il codice precedente fino al riavvio di OBS. Il cambio di tema invece non richiede mai di ricaricare.
+
+**Requisiti del browser della sorgente.** La sorgente Browser di OBS usa Chromium (CEF). L'overlay usa:
+- `color-mix()`, che richiede Chromium 111 o successivo;
+- `backdrop-filter` (temi Clean Glass e Holographic);
+- `@property`, le variabili CSS e `clip-path`.
+
+Con un Chromium più vecchio alcuni effetti (sfumature, vetro smerigliato) possono mancare o apparire diversi; le informazioni di gioco restano leggibili. Le versioni di Chromium incluse nelle singole versioni di OBS **non sono state verificate** in questo progetto: controlla la tua versione di OBS (*Aiuto → Informazioni*) e prova l'anteprima con un tema prima della diretta.
+
+Quando non sei in diretta l'overlay è vuoto. Per provarlo usa la **Modalità DEMO** oppure il simulatore dell'**Overlay Designer**.
+
+### Overlay Designer (temi)
+
+Sezione **Overlay Designer** della dashboard. Contiene **9 temi integrati**, ognuno con una disposizione propria e non una semplice variazione di colore:
+
+| Tema | Stile |
+|---|---|
+| Classico | L'aspetto delle versioni precedenti: card centrata con bordo del colore della rarità. È il tema attivo dopo l'aggiornamento, così la diretta non cambia aspetto |
+| Minimal Dark | Barra orizzontale compatta: immagine a sinistra, linea del tempo sottile |
+| Clean Glass | Vetro smerigliato, con il Pokémon che fluttua sopra la card |
+| Neon HUD | Interfaccia sci-fi: angoli tagliati, staffe di mira, timer circolare al neon, linee di scansione |
+| Minimal Light | Stile editoriale chiaro: titolo serif, filetti, timer numerico |
+| Cyber Pulse | Pannello inclinato, nome con effetto glitch, bordo pulsante, grande conto alla rovescia |
+| Holographic | Carta collezionabile con bordo iridescente e riflesso olografico |
+| Cinematic | Sottopancia panoramico a tutta larghezza; le notifiche appaiono come sottotitoli |
+| Gradient Motion | Gradienti in movimento, forme morbide, entrate elastiche |
+
+**Cosa puoi fare:**
+- **Gestire i temi**: selezionarli, duplicarli, modificarli, salvarli, ripristinare i valori originali, creare temi personalizzati partendo da uno stile grafico, importarli ed esportarli in JSON. I preset integrati non si possono eliminare ma si possono ripristinare.
+- **Modificare**:
+  - colori, compreso lo sfondo con la sua opacità;
+  - font e dimensioni del testo, spessore, maiuscolo, spaziatura;
+  - bordi, angoli, ombre e bagliore;
+  - posizione (9 posizioni) con margini, larghezza del pannello, dimensione dell'immagine e scala;
+  - entrata, uscita e velocità delle animazioni, e quanti eventi possono restare in coda prima che le animazioni vengano saltate;
+  - durata delle notifiche e quante ne restano visibili insieme;
+  - elementi mostrati e stile del timer (barra, anello, numeri);
+  - intensità degli effetti.
+- **Anteprima in tempo reale**: è la stessa pagina `/overlay` che usa OBS, alla risoluzione scelta (1920×1080 o 1280×720) e con lo sfondo che preferisci. Ogni modifica si vede subito, senza ricaricare e senza salvare.
+- **Cambio tema senza riavvio**: **▶ Usa su OBS** invia il tema all'overlay via WebSocket; anche il salvataggio del tema attivo aggiorna OBS subito.
+- **Font**:
+  - le famiglie proposte sono font di sistema, senza download esterni;
+  - un font personalizzato deve essere installato sul **PC che esegue OBS**;
+  - il nome del font personalizzato può contenere lettere (anche accentate), cifre, spazi, trattini e punti, fino a 60 caratteri; apostrofi, virgolette, virgole e punti e virgola non sono ammessi;
+  - l'anteprima nel browser della dashboard può mostrare un font diverso se lì non è installato.
+- **Prestazioni**: con **intensità effetti 0** non ci sono animazioni continue. Quando nessun Pokémon è visibile l'overlay non esegue animazioni.
+- **Molti riscatti ravvicinati**: lanci, catture e fughe passano da una coda con un limite configurabile (*Animazioni → Eventi in coda prima di saltare le animazioni*, predefinito 6).
+  - Quando la coda è piena a metà le animazioni diventano 3 volte più rapide.
+  - Quando la coda è piena le animazioni vengono saltate.
+  - Esiti, tentativi e catture restano sempre esatti: nessun evento reale viene perso.
+  - Se le notifiche in attesa superano il massimo, si scartano per prime le meno importanti; le catture reali restano.
+  - Il cambio di tema non aspetta la coda: viene applicato subito, e il contatore dei tentativi resta quello corretto.
+- **Leggibilità**: le scritte piccole hanno una dimensione minima di 14 px e le notifiche di 18 px, sulla tela 1920×1080 (a 1280×720 diventano circa 9 e 12 px). Il testo dei preset ha un contrasto di almeno 4,5:1 sul proprio pannello, anche sopra una scena di gioco chiara.
+- **Modifiche contemporanee**: se lo stesso tema viene salvato da un'altra scheda o da un'altra persona dopo che lo hai aperto, il salvataggio non sovrascrive nulla. Il Designer chiede se **ricaricare** la versione salvata o **sovrascriverla** consapevolmente.
+- **Formato JSON** (`livecatch-overlay-theme`, versione 1):
+  - massimo 64 KB;
+  - ogni valore viene validato: colori solo `#hex`, `rgb()`, `rgba()` o `transparent`; numeri riportati negli intervalli consentiti; campi sconosciuti scartati;
+  - l'importazione crea sempre un **nuovo** tema personalizzato e mostra cosa è stato corretto.
+
+**Simulatore** (pulsanti sotto l'anteprima):
+- **Eventi disponibili**: spawn, shiny, leggendario, lancio fallito, cattura, fuga, scadenza, notifica di prova, sequenza completa, pulizia.
+- **Isolamento**: gli eventi simulati non passano dal motore di gioco e **non scrivono nulla nel database**. Pokédex, statistiche, classifiche, catture e storico delle dirette non cambiano (verificato da test automatici). Il simulatore legge soltanto l'elenco dei Pokémon, per mostrare nomi e immagini veri.
+- **Anteprima privata o overlay pubblico**:
+  - Normalmente le simulazioni compaiono **solo nell'anteprima privata** del Designer, che funziona sempre, anche durante una diretta.
+  - Con *Invia anche all'overlay pubblico (OBS)* gli eventi arrivano anche alle sorgenti OBS collegate, con il badge **SIMULAZIONE**.
+  - L'invio all'overlay pubblico è consentito solo a gioco fermo (OFFLINE, senza DEMO). In LIVE, in PAUSED e in DEMO l'opzione è disattivata. Il server rifiuta la richiesta (HTTP 409) anche se l'API viene chiamata direttamente.
+  - Ogni invio all'overlay pubblico è registrato nel log (*Backup e Sistema → Log*).
+- **Pulizia automatica**:
+  - Quando parte la diretta o la DEMO, gli elementi simulati ancora visibili vengono tolti subito dall'overlay, insieme a eventuali sequenze in corso.
+  - Spawn e notifiche reali non vengono toccati.
+  - Lo stesso vale se OBS si ricollega durante il passaggio: alla riconnessione riceve solo lo stato reale.
 
 ## Configurazione della dashboard
 
@@ -328,7 +398,7 @@ Interfaccia con tema scuro viola, menu laterale (riducibile a sole icone), barra
 - **Gestione Spawn**: intervalli, durata, probabilità, pesi rarità, probabilità di cattura, shiny, eventi speciali, generazione manuale, storico.
 - **Gestione Pokémon**: importazione, ricerca, rarità, difficoltà, peso di apparizione, abilitazione, shiny, statistiche.
 - **Poké Ball e Ricompense**: crea, modifica moltiplicatori, cattura garantita, abilita/disabilita, collegamento ai punti canale.
-- **Gestione Twitch**, **Comandi Chat**, **Overlay**, **Storico Dirette**, **Backup e Sistema** (backup, log, versione, stato componenti, spazio).
+- **Gestione Twitch**, **Comandi Chat**, **Overlay Designer** (vedi [Overlay Designer](#overlay-designer-temi)), **Storico Dirette**, **Backup e Sistema** (backup, log, versione, stato componenti, spazio).
 - **Impostazioni**: cambio password, pagine pubbliche, Modalità DEMO.
 
 Pagine pubbliche (disattivabili da *Backup & Sistema*): `/` introduzione, `/pokedex/USERNAME`, `/leaderboard`. Endpoint di stato: `/health`.
@@ -387,6 +457,8 @@ Il database viene migrato automaticamente all'avvio con migrazioni incrementali 
 | Il bot non risponde | I comandi funzionano solo in LIVE; controlla cooldown/anti-spam; se usi un bot separato, assicurati che non sia bannato nel canale. |
 | Nessun Pokémon appare | Importa i Pokémon; verifica che ci siano Pokémon abilitati e che *Spawn automatici attivi* sia acceso. |
 | Overlay vuoto in OBS | Usa l'IP del server; prova la Modalità DEMO; verifica che l'URL sia `/overlay`. |
+| Dopo l'aggiornamento l'overlay in OBS si comporta come prima | Proprietà della sorgente Browser → **Aggiorna la cache della pagina corrente**. |
+| Il simulatore non invia all'overlay pubblico | È consentito solo a gioco fermo: in LIVE, PAUSED o DEMO le simulazioni restano nell'anteprima privata. |
 | Ho perso la password admin | Crea un file vuoto chiamato `reset-admin-password` nella cartella dati (Umbrel: `~/umbrel/app-data/piu-live-catch/data/`, metodo B: `~/livecatch/data/`) e riavvia l'app. La nuova password temporanea sarà nel file `initial-admin-password.txt` nella stessa cartella. I dati di gioco non vengono toccati. |
 | Log | *Backup & Sistema → Log*, oppure il file `/data/logs/app.log`. |
 
@@ -421,6 +493,13 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - recupero dei riscatti in sospeso dopo la riconnessione EventSub, senza duplicati;
   - eventi tardivi, ritentativi, ricompense non elaborabili;
   - limiti delle ricompense collegate.
+- **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):
+  - preset, validazione, importazione ed esportazione, persistenza e migrazione;
+  - simulatore isolato e bloccato sull'overlay pubblico in LIVE, PAUSED e DEMO;
+  - pulizia degli elementi simulati all'avvio della diretta;
+  - coda delle animazioni con oltre 100 eventi e cambio tema immediato;
+  - modifiche contemporanee dello stesso tema.
+  - Il vero `overlay.js` gira in un DOM minimo (`test/dom-shim.js`). Il rendering grafico reale va comunque provato in un browser e in OBS.
 
 Twitch viene simulato con un server EventSub WebSocket locale e un finto Helix: **solo nei test**.
 

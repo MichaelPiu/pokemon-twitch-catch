@@ -1,0 +1,17 @@
+/* Classico: card centrata con bordo del colore della rarità (aspetto delle versioni precedenti). */
+.t-classic .spawn {
+  padding: 16px 18px 14px; border-radius: var(--radius); background: var(--panel); text-align: center;
+  border: var(--bw) solid var(--rc, var(--accent));
+  box-shadow: 0 10px 40px rgba(0, 0, 0, calc(0.75 * var(--shadow))), 0 0 calc(60px * var(--glow)) color-mix(in srgb, var(--rc) 70%, transparent);
+  backdrop-filter: blur(4px);
+}
+.t-classic .spawn .img-wrap { height: var(--img); }
+.t-classic .spawn img.mon { filter: drop-shadow(0 6px 10px rgba(0,0,0,0.55)); }
+.t-classic .spawn .name { text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+.t-classic .spawn .meta { justify-content: center; }
+.t-classic .spawn .timer { margin-top: 10px; border-radius: 6px; }
+.t-classic .spawn .digits { font-size: 1.6em; margin-top: 6px; color: var(--accent); }
+.t-classic .note { border-radius: 14px; border-left: 6px solid var(--accent); }
+.t-classic .note.ok { border-left-color: var(--ok); }
+.t-classic .note.ko { border-left-color: var(--ko); }
+.t-classic .note.big { font-size: max(var(--min-note), 1.35em); padding: 14px 20px; border: 3px solid var(--ok); border-left-width: 8px; background: linear-gradient(135deg, color-mix(in srgb, var(--ok) 30%, var(--panel)), var(--panel)); }

@@ -1,5 +1,117 @@
 # Changelog
 
+## Non rilasciato — Overlay Themes
+
+### Overlay Designer
+- Nuova sezione **Overlay Designer**, che sostituisce la pagina *Overlay*.
+- **9 temi integrati**: Classico, che replica l'aspetto precedente ed è il tema attivo di default, più gli 8 richiesti: Minimal Dark, Clean Glass, Neon HUD, Minimal Light, Cyber Pulse, Holographic, Cinematic, Gradient Motion. Ognuno ha disposizione e foglio di stile propri.
+- **Editor visuale**: colori con opacità, font e dimensioni, bordi, angoli, ombre e bagliore, posizione (9 punti), margini, larghezza del pannello e dimensione dell'immagine, animazioni di entrata e uscita con velocità, notifiche (durata, numero visibili, tipi), elementi e stile del timer (barra, anello, numeri), intensità degli effetti.
+- **Anteprima in tempo reale** con la vera pagina `/overlay` alla risoluzione scelta (1920×1080 / 1280×720) e sfondo selezionabile; aggiornamento senza ricaricare.
+- **Gestione dei temi**: selezione, duplicazione, modifica, salvataggio, ripristino dei valori originali, creazione da zero, importazione ed esportazione JSON con validazione e sanificazione. I temi sono salvati nel database (tabella `overlay_themes`, migrazione 3, con backup automatico prima della migrazione).
+- **Simulatore**: spawn, shiny, leggendario, lancio fallito, cattura, fuga, scadenza, notifica, sequenza completa.
+  - Nessuna scrittura nel database.
+  - Invio all'overlay pubblico (OBS) facoltativo, solo a gioco fermo, con badge "SIMULAZIONE".
+
+### Overlay
+- Tela logica 1920×1080 scalata alla sorgente: stesso aspetto a 1920×1080 e 1280×720.
+- Cambio di tema immediato via WebSocket, senza ricaricare la sorgente OBS.
+- Nuove posizioni: centro-sinistra e centro-destra.
+- Nuovo evento `notice`.
+- Intensità effetti 0: nessuna animazione continua.
+- Compatibilità:
+  - le impostazioni overlay esistenti vengono applicate al tema Classico, quindi l'aspetto in diretta non cambia dopo l'aggiornamento;
+  - `GET`/`PUT /api/admin/overlay` continuano a funzionare;
+  - lo snapshot WebSocket mantiene i campi precedenti.
+
+### Dashboard
+- Barra superiore su schermi stretti (≤ 600 px): titolo abbreviato e solo il pallino di stato Twitch, senza scorrimento orizzontale.
+
+### Manutenzione e stabilizzazione (dopo l'audit tecnico)
+
+#### Simulatore e overlay pubblico
+- **P1**:
+  - Le simulazioni verso l'overlay pubblico (OBS) sono bloccate anche in **PAUSED**: prima il controllo guardava solo il motore in esecuzione.
+  - L'overlay pubblico risulta "in uso" in LIVE, PAUSED, DEMO o con una diretta sospesa. Il blocco vale anche chiamando l'API direttamente (409) e su `sendToObs`.
+  - La destinazione predefinita è l'anteprima privata; valori diversi da `preview` e `obs` sono rifiutati (400).
+  - Il Designer distingue *anteprima privata* e *overlay pubblico (OBS)*. A gioco attivo disattiva l'opzione e lo spiega; lo stato viene ricontrollato ogni 15 s.
+- **P2**:
+  - Quando il gioco passa a LIVE o PAUSED, o si avvia la DEMO, gli invii programmati vengono annullati e gli overlay ricevono il nuovo evento `sim_clear`.
+  - Gli overlay tolgono solo gli elementi marcati `sim: true` (eventi in coda, spawn, notifiche). Lo stesso fanno con `state` attivo e con il `clear` del simulatore. Gli elementi reali non vengono toccati.
+  - Alla riconnessione lo snapshot contiene solo lo stato reale.
+- **P8**: lo spawn simulato che arriva dal browser è validato campo per campo (id, tipi, rarità, immagine locale o PokéAPI, date, tentativi, nome senza caratteri di controllo). Se non è valido viene scartato. Testo e durata delle notifiche di prova sono controllati.
+- **P12**: ogni invio simulato all'overlay pubblico e ogni pulizia sono registrati nel log (`[overlay]`).
+
+#### Overlay
+- **P3**:
+  - Nuova coda limitata per spawn, lanci e fughe (`public/assets/js/overlay/event-queue.js`).
+  - Il limite è configurabile da *Animazioni → Eventi in coda prima di saltare le animazioni* (2–50, predefinito 6). Con la coda piena a metà le animazioni sono 3 volte più rapide; con la coda piena vengono saltate.
+  - Nessun evento reale viene perso; ogni evento ha un tempo massimo di 8 s.
+  - Nel browser, 120 lanci consecutivi sono stati smaltiti in circa 10 s con il contatore esatto.
+  - Il cambio tema non passa più dalla coda: viene applicato subito (2 ms misurati con 119 eventi in attesa).
+  - Notifiche: con la coda piena si scartano per prime le meno importanti; le catture reali restano.
+  - Con cambi di tema rapidi vince l'ultimo foglio di stile richiesto.
+- **P4**: il contatore dei tentativi resta corretto dopo un cambio tema.
+- **P5**:
+  - Contrasto del testo ≥ 4,5:1 sul pannello di ogni preset, anche sopra uno sfondo bianco. Clean Glass ha ora una velatura scura e l'ombra del testo; il pannello di Gradient Motion è più opaco; il testo secondario di Minimal Dark è più chiaro.
+  - Dimensioni minime: scritte piccole 14 px e notifiche 18 px sulla tela 1920×1080 (circa 9,3 e 12 px a 1280×720, contro gli 8–11 px precedenti).
+  - Chi ha già modificato un preset mantiene i propri colori; *Ripristina* applica i nuovi valori.
+
+#### Temi e API
+- **P6**: `PUT /api/admin/overlay` (API precedente) accetta tutte le 9 posizioni. Prima rifiutava qualsiasi modifica se il tema attivo era al centro a sinistra o a destra.
+- **P7**:
+  - Nomi dei font personalizzati: lettere (anche accentate), cifre, spazi, trattini e punti, fino a 60 caratteri.
+  - Apostrofi, virgolette, virgole e punti e virgola sono rifiutati.
+  - Il CSS generato mette il nome tra virgolette doppie dopo averlo ripulito.
+- **P9**:
+  - Il salvataggio di un tema richiede la revisione `rev`. Il server scrive solo se il tema è ancora a quella revisione (controllo nella stessa istruzione SQL); altrimenti risponde 409 con la versione salvata.
+  - Il Designer chiede se ricaricare o sovrascrivere esplicitamente (`force: true`). Nessuna sovrascrittura silenziosa.
+- **P12**:
+  - Una sola funzione di unione delle configurazioni (`mergeConfig`) per browser e server.
+  - Rimossi il ramo `fromId` della creazione dei temi e tre selettori CSS che non potevano mai applicarsi.
+  - Nomi dei tipi in un'unica tabella (`lib.js`) per dashboard e overlay. I colori delle rarità dell'overlay restano distinti, per scelta, da quelli della dashboard.
+
+#### Documentazione
+- **P10**: come aggiornare la cache della sorgente Browser in OBS dopo un aggiornamento (README, Guida rapida, scheda del Designer).
+- **P11**:
+  - Funzioni del browser usate dall'overlay: `color-mix()`, che richiede Chromium 111+, `backdrop-filter` e `@property`.
+  - Le versioni di Chromium incluse in OBS non sono state verificate.
+
+### Test
+- `test/overlay-stability.test.js` (25 test):
+  - simulazione in OFFLINE, DEMO, LIVE e PAUSED, con tentativi di aggirare il blocco via API;
+  - passaggio OFFLINE → LIVE con elementi simulati presenti;
+  - sequenza programmata interrotta;
+  - riconnessione del WebSocket durante la transizione;
+  - 150 eventi consecutivi; evento bloccato o in errore; timer come nel browser;
+  - cambio tema con la coda piena e durante una cattura reale;
+  - contatore dei tentativi dopo il cambio tema;
+  - pulizia solo degli elementi simulati;
+  - notifiche con la coda piena;
+  - cambi di tema rapidi;
+  - 8 salvataggi contemporanei dello stesso tema;
+  - posizioni nell'API precedente;
+  - font personalizzati;
+  - contrasto e dimensioni minime;
+  - validazione dello spawn simulato;
+  - database (Pokédex, catture, statistiche, classifiche, ricompense) invariato.
+- I test dell'overlay eseguono il vero `overlay.js` in un DOM minimo senza dipendenze (`test/dom-shim.js`).
+- Utilità condivise in `test/overlay-helpers.js`.
+- `FakeEventSub.refuse` simula Twitch irraggiungibile, così lo stato PAUSED resta stabile.
+- Totale 130 (105 + 25).
+
+### Test (prima versione di Overlay Themes)
+- `test/overlay-themes.test.js` (15 test):
+  - preset e validazione;
+  - salvataggio e persistenza dopo il riavvio;
+  - duplicazione, ripristino ed eliminazione;
+  - importazione ed esportazione, anche con input malevoli;
+  - aggiornamento WebSocket e cambio tema senza riavvio;
+  - isolamento del simulatore (fotografia completa del database);
+  - simulatore bloccato a gioco attivo;
+  - API precedenti;
+  - migrazione da un database rc.2.
+- Totale allora: 105. Negli stessi test i salvataggi ora inviano `rev`.
+
 ## 1.0.0-rc.2 — preparazione al collaudo su Umbrel
 
 ### Token Twitch revocati

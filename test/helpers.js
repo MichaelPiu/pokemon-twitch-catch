@@ -130,7 +130,9 @@ export class FakeEventSub {
     this.sockets = new Set();
     this.sessionCounter = 0;
     this.msgCounter = 0;
+    this.refuse = false; // true: le nuove connessioni vengono chiuse subito (Twitch irraggiungibile)
     this.wss.on('connection', (ws) => {
+      if (this.refuse) { ws.terminate(); return; }
       this.sockets.add(ws);
       ws.on('close', () => this.sockets.delete(ws));
       ws.send(JSON.stringify({

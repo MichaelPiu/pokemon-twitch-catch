@@ -1,0 +1,31 @@
+/* Clean Glass: card in vetro smerigliato, bordo luminoso sottile, riflesso diagonale.
+   Il Pokémon "esce" dalla card fluttuando sopra il bordo superiore. */
+.t-clean-glass .spawn {
+  margin-top: calc(var(--img) * 0.45); padding: calc(var(--img) * 0.55 + 6px) 20px 16px; text-align: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--panel) 100%, transparent), color-mix(in srgb, var(--panel) 88%, transparent));
+  /* Velatura scura + ombra del testo: leggibile anche su scene di gioco chiare. */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+  border-radius: var(--radius); border: var(--bw) solid rgba(255,255,255,0.45);
+  backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 20px 50px rgba(0,0,0, calc(0.5 * var(--shadow))), inset 0 1px 0 rgba(255,255,255,0.6);
+  overflow: visible;
+}
+.t-clean-glass .spawn .deco { display: block; position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.t-clean-glass .spawn .deco .sheen { display: block; position: absolute; inset: -40% -60%; background: linear-gradient(115deg, transparent 42%, rgba(255,255,255, calc(0.28 * var(--fx))) 50%, transparent 58%); }
+.anim.fx-shimmer.t-clean-glass .spawn .deco .sheen { animation: glass-sheen calc(6s / var(--speed)) ease-in-out infinite; }
+@keyframes glass-sheen { 0%, 60% { transform: translateX(-35%); } 100% { transform: translateX(35%); } }
+.t-clean-glass .spawn .img-wrap { position: absolute; left: 0; right: 0; top: calc(var(--img) * -0.45); height: var(--img); }
+.t-clean-glass .spawn img.mon { filter: drop-shadow(0 14px 18px rgba(0,0,0,0.35)); }
+.t-clean-glass .spawn .head { color: var(--muted); font-weight: 600; letter-spacing: 0.2em; font-size: max(var(--min-small), 0.7em); }
+.t-clean-glass .spawn .name { margin-top: 4px; }
+.t-clean-glass .spawn .meta { justify-content: center; }
+.t-clean-glass .badge { background: rgba(255,255,255,0.22); color: var(--text); font-weight: 600; }
+.t-clean-glass .badge.rarity { background: color-mix(in srgb, var(--rc) 45%, rgba(255,255,255,0.2)); }
+.t-clean-glass .spawn .timer { margin-top: 12px; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.18); }
+.t-clean-glass .spawn .timer > div { border-radius: 999px; background: linear-gradient(90deg, var(--secondary), var(--primary)); }
+.t-clean-glass .spawn .digits { margin-top: 8px; font-size: 1.5em; font-weight: 300; letter-spacing: 0.1em; }
+.t-clean-glass .spawn .foot { justify-content: center; gap: 18px; color: var(--muted); }
+.t-clean-glass .spawn .ring .prog { stroke: var(--secondary); stroke-width: 2; }
+.t-clean-glass .note { text-shadow: 0 1px 2px rgba(0,0,0,0.45); border-radius: 16px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.4); font-weight: 500; }
+.t-clean-glass .note.ok { background: color-mix(in srgb, var(--ok) 25%, var(--panel)); }
+.t-clean-glass .note.ko { background: color-mix(in srgb, var(--ko) 22%, var(--panel)); }

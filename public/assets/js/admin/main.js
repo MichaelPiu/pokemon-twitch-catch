@@ -19,7 +19,7 @@ const NAV = [
   ['balls', 'gift', 'Poké Ball e Ricompense', 'Moltiplicatori e collegamento ai punti canale'],
   ['twitch', 'twitch', 'Gestione Twitch', 'Account, connessione, ricompense ed eventi'],
   ['commands', 'chat', 'Comandi Chat', 'Risposte, cooldown e anti-spam dei comandi'],
-  ['overlay', 'monitor', 'Overlay', 'Aspetto e anteprima dell\'overlay per OBS'],
+  ['overlay', 'monitor', 'Overlay Designer', 'Temi, editor visuale, anteprima e simulatore dell\'overlay per OBS'],
   ['sessions', 'calendar', 'Storico Dirette', 'Tutte le sessioni LIVE con il loro dettaglio'],
   ['system', 'database', 'Backup e Sistema', 'Backup, ripristino, log e stato del servizio'],
   ['settings', 'settings', 'Impostazioni', 'Account, pagine pubbliche e modalità DEMO'],

@@ -1,6 +1,7 @@
 // Validazione delle impostazioni ricevute dalla dashboard.
 import { HttpError, v } from '../http/router.js';
 import { RARITIES } from './defaults.js';
+import { POSITIONS } from '../../public/assets/js/overlay/theme-core.js';
 
 const num = (x, min, max, name, int = false) => v.num(x, { min, max, name, int });
 
@@ -92,12 +93,14 @@ export function validateCommandGlobals(body, cur) {
   };
 }
 
+// Stesse 9 posizioni del Designer: il vecchio PUT /api/admin/overlay non deve
+// rifiutare un tema attivo posizionato al centro a sinistra/destra.
 export function validateOverlay(body, store) {
   const out = {};
   if (body.layout) {
     const l = { ...store.get('layout'), ...body.layout };
     out.layout = {
-      position: v.oneOf(l.position, ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'top-center', 'bottom-center'], 'Posizione'),
+      position: v.oneOf(l.position, POSITIONS, 'Posizione'),
       scale: num(l.scale, 0.3, 3, 'Scala'),
       width: num(l.width, 320, 7680, 'Larghezza', true),
       height: num(l.height, 240, 4320, 'Altezza', true),
