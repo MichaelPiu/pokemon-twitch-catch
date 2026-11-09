@@ -1,5 +1,5 @@
 import { h, mount, get, post, patch, del } from '../../lib.js';
-import { card, table, act, modal, confirmDialog } from '../ui.js';
+import { card, table, act, modal, confirmDialog, toast } from '../ui.js';
 
 export async function balls({ el }) {
   const load = async () => {
@@ -21,7 +21,7 @@ export async function balls({ el }) {
             h('button', { class: 'btn sm danger', onclick: async () => {
               if (!await confirmDialog(`Eliminare ${b.name}? Se è già stata usata verrà solo disattivata.`, { danger: true })) return;
               const r = await act(() => del(`/api/admin/balls/${b.id}`));
-              if (r?.message) alert(r.message);
+              if (r?.message) toast(r.message);
               load();
             } }, 'Elimina')) },
         ], list),

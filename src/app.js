@@ -85,6 +85,8 @@ export class App {
     this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.overlaySettings.all() }));
     this.hub.setSnapshot('admin', () => this.liveStatus());
     this.engine.on('status', () => this.hub.admin('status', this.liveStatus()));
+    // Aggiorna dashboard e barra superiore anche per i cambi di stato Twitch (non solo del motore).
+    this.sm.on('transition', () => setImmediate(() => { if (this.db?.db) this.hub.admin('status', this.liveStatus()); }));
     this.logger.listeners.add((e) => { if (e.level === 'warn' || e.level === 'error') this.hub.admin('log', e); });
 
     this.apiLimiter = new RateLimiter({ max: 600, windowMs: 60000 });

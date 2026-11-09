@@ -85,4 +85,9 @@ describe('Sistema di spawn', () => {
     assert.equal(rarityFromSpecies({ capture_rate: 45 }), 'rare');
     assert.equal(rarityFromSpecies({ capture_rate: 3 }), 'epic');
   });
+  test('generazione manuale: shiny forzato anche per Pokémon casuale', () => {
+    app.engine.activateLive({ broadcastId: 'x' });
+    const sp = app.engine.spawn({ source: 'manual', shiny: true });
+    assert.equal(sp.shiny, true);
+  });
 });

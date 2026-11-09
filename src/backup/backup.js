@@ -55,7 +55,8 @@ export class BackupService {
         rows.push({ id: null, filename: f, kind: /-(manual|auto|pre-restore|pre-migration|upload)/.exec(f)?.[1] || 'manual', size_bytes: st.size, created_at: st.mtime.toISOString(), status: 'ok' });
       }
     }
-    return rows.map((r) => ({ ...r, exists: existsSync(join(this.dir, r.filename)) }));
+    return rows.map((r) => ({ ...r, exists: existsSync(join(this.dir, r.filename)) }))
+      .sort((a, b) => b.filename.slice(10, 25).localeCompare(a.filename.slice(10, 25)));
   }
 
   path(name) {

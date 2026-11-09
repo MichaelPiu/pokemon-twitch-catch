@@ -20,8 +20,8 @@ export async function stats({ el }) {
         stat('Partecipanti unici', fmt.n(t.participants)), stat('Allenatori registrati', fmt.n(t.users)))),
       card('Andamento', tabs,
         series.length ? h('div', {},
-          h('h3', {}, 'Tentativi (giallo) e catture (rosso)'), barChart(series, { key: 'attempts', secondary: 'captures' }),
-          h('h3', { style: { marginTop: '14px' } }, 'Pokémon apparsi'), barChart(series, { key: 'spawns', color: 'var(--blue)' }),
+          h('h3', {}, 'Tentativi (viola) e catture (verde)'), barChart(series, { key: 'attempts', secondary: 'captures' }),
+          h('h3', { style: { marginTop: '14px' } }, 'Pokémon apparsi'), barChart(series, { key: 'spawns', color: '#38bdf8' }),
           table([
             { label: 'Periodo', key: 'bucket' }, { label: 'Dirette', key: 'sessions' }, { label: 'Spawn', key: 'spawns' },
             { label: 'Shiny', key: 'shiny' }, { label: 'Tentativi', key: 'attempts' }, { label: 'Catture', key: 'captures' },

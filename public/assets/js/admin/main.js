@@ -27,7 +27,7 @@ const NAV = [
 const HIDDEN = { demo: ['flask', 'Modalità DEMO', 'Prova il gioco senza Twitch, separato dalle statistiche reali'] };
 
 window.addEventListener('api-error', (e) => {
-  if (e.detail.status === 401) showLogin();
+  if (e.detail.status === 401 && !String(e.detail.path).startsWith('/api/auth/login')) showLogin();
   else if (e.detail.status === 403 && e.detail.details?.mustChangePassword) showChangePassword(true);
 });
 

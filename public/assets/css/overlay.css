@@ -60,7 +60,7 @@ body { font-family: var(--font); color: var(--text); }
 @keyframes burst { to { transform: scale(2.2); opacity: 0; } }
 
 /* Notifiche */
-.notes { position: absolute; display: flex; flex-direction: column; gap: 8px; }
+.notes { display: flex; flex-direction: column; gap: 8px; align-items: inherit; }
 .note { min-width: 260px; max-width: 420px; padding: 10px 16px; border-radius: 14px; background: var(--panel); border-left: 6px solid var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,0.4); font-size: 17px; font-weight: 600; }
 .note.ok { border-left-color: var(--ok); }
 .note.ko { border-left-color: var(--ko); }

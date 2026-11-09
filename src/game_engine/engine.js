@@ -194,6 +194,7 @@ export class GameEngine extends EventEmitter {
       pick = { pokemon: p, isShiny };
     } else {
       pick = pickPokemon(this.db, cfg, this.rng);
+      if (pick && shiny != null) pick.isShiny = !!shiny; // es. "Genera shiny" dalla dashboard
     }
     if (!pick) {
       this.lastError = 'Nessun Pokémon disponibile: importa i dati da PokéAPI o abilita qualche Pokémon';

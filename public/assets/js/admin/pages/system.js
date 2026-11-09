@@ -1,5 +1,5 @@
 import { h, mount, get, post, put, del, api, fmt } from '../../lib.js';
-import { card, table, act, confirmDialog, stat, field } from '../ui.js';
+import { card, table, act, confirmDialog, stat, field, toast } from '../ui.js';
 
 export async function system({ el }) {
   const load = async () => {
@@ -78,9 +78,9 @@ export async function system({ el }) {
       if (!f) return;
       if (mode === 'replace' && !await confirmDialog('Sostituire tutte le collezioni reali con quelle del file?', { danger: true })) return;
       let data;
-      try { data = JSON.parse(await f.text()); } catch { alert('File JSON non valido'); return; }
+      try { data = JSON.parse(await f.text()); } catch { toast('File JSON non valido', 'err'); return; }
       const r = await act(() => post('/api/admin/import', { data, mode }));
-      if (r) alert(`Importati ${r.users} utenti e ${r.pokemon} Pokémon (${r.skipped} saltati).`);
+      if (r) toast(`Importati ${r.users} utenti e ${r.pokemon} Pokémon (${r.skipped} saltati).`, 'ok');
     }
   };
   await load();

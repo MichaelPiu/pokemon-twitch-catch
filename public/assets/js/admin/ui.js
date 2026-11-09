@@ -49,6 +49,21 @@ export function confirmDialog(message, { danger = false, okLabel = 'Conferma' } 
   });
 }
 
+export function promptDialog(message, { placeholder = '', okLabel = 'Conferma', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const input = h('input', { placeholder, maxlength: 200 });
+    const close = (v) => { bg.remove(); resolve(v); };
+    const bg = h('div', { class: 'modal-bg', onclick: (e) => { if (e.target === bg) close(null); } },
+      h('div', { class: 'card modal', style: { maxWidth: '460px' } },
+        h('p', {}, message), input,
+        h('div', { class: 'row end', style: { marginTop: '12px' } },
+          h('button', { class: 'btn ghost', onclick: () => close(null) }, 'Annulla'),
+          h('button', { class: `btn ${danger ? 'danger' : 'primary'}`, onclick: () => close(input.value.trim()) }, okLabel))));
+    document.body.appendChild(bg);
+    input.focus();
+  });
+}
+
 export function modal(title, body, { onClose } = {}) {
   const bg = h('div', { class: 'modal-bg', onclick: (e) => { if (e.target === bg) close(); } });
   const close = () => { bg.remove(); onClose?.(); };

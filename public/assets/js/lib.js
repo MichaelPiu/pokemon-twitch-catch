@@ -49,6 +49,7 @@ export async function api(method, path, body, { raw = false } = {}) {
   try { data = await res.json(); } catch { /* vuoto */ }
   if (!res.ok) {
     const err = new ApiError(res.status, data?.error || `Errore ${res.status}`, data?.details);
+    err.path = path;
     window.dispatchEvent(new CustomEvent('api-error', { detail: err }));
     throw err;
   }
@@ -129,48 +130,35 @@ export const fmt = {
   },
 };
 
-// Grafico a barre SVG (nessuna dipendenza esterna).
-export function barChart(data, { key = 'value', label = 'label', height = 180, color = 'var(--accent)', secondary = null, secondaryColor = 'var(--primary)' } = {}) {
+// Grafico a barre SVG (nessuna dipendenza esterna). Barre a larghezza limitata, proporzioni fisse.
+export function barChart(data, { key = 'value', label = 'label', height = 200, color = '#a855f7', secondary = null, secondaryColor = '#22c55e' } = {}) {
   const ns = 'http://www.w3.org/2000/svg';
-  const W = Math.max(300, data.length * 28), H = height, pad = 22;
+  const W = 760, H = height, L = 34, R = 10, T = 12, B = 24;
   const max = Math.max(1, ...data.map((d) => Math.max(d[key] || 0, secondary ? d[secondary] || 0 : 0)));
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('class', 'chart');
-  svg.setAttribute('preserveAspectRatio', 'none');
-  const bw = (W - pad) / Math.max(1, data.length);
+  const el = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
+  const y = (v) => T + (1 - v / max) * (H - T - B);
+  for (const v of [0, max / 2, max]) {
+    svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: 'rgba(255,255,255,0.07)' }));
+    svg.appendChild(el('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'chart-label' }, Math.round(v)));
+  }
+  const slot = (W - L - R) / Math.max(1, data.length);
+  const group = Math.min(64, slot * 0.7);
+  const bars = secondary ? 2 : 1;
+  const bw = group / bars;
   data.forEach((d, i) => {
-    const mk = (val, c, off, w) => {
-      const bh = ((val || 0) / max) * (H - pad - 6);
-      const r = document.createElementNS(ns, 'rect');
-      r.setAttribute('x', pad + i * bw + off);
-      r.setAttribute('y', H - pad - bh);
-      r.setAttribute('width', w);
-      r.setAttribute('height', Math.max(0, bh));
-      r.setAttribute('rx', 3);
-      r.setAttribute('fill', c);
-      const t = document.createElementNS(ns, 'title');
-      t.textContent = `${d[label]}: ${val || 0}`;
-      r.appendChild(t);
+    const x0 = L + i * slot + (slot - group) / 2;
+    [[d[key], color], ...(secondary ? [[d[secondary], secondaryColor]] : [])].forEach(([val, c], j) => {
+      const r = el('rect', { x: x0 + j * bw, y: y(val || 0), width: Math.max(2, bw - 2), height: Math.max(0, y(0) - y(val || 0)), rx: 4, fill: c });
+      r.appendChild(el('title', {}, `${d[label]}: ${val || 0}`));
       svg.appendChild(r);
-    };
-    const w = Math.max(2, bw * 0.7);
-    if (secondary) { mk(d[key], color, bw * 0.15, w / 2); mk(d[secondary], secondaryColor, bw * 0.15 + w / 2, w / 2); }
-    else mk(d[key], color, bw * 0.15, w);
+    });
     if (data.length <= 16 || i % Math.ceil(data.length / 12) === 0) {
-      const tx = document.createElementNS(ns, 'text');
-      tx.setAttribute('x', pad + i * bw + bw / 2);
-      tx.setAttribute('y', H - 6);
-      tx.setAttribute('text-anchor', 'middle');
-      tx.setAttribute('class', 'chart-label');
-      tx.textContent = String(d[label]).slice(-5);
-      svg.appendChild(tx);
+      svg.appendChild(el('text', { x: L + i * slot + slot / 2, y: H - 6, 'text-anchor': 'middle', class: 'chart-label' }, String(d[label]).slice(-5)));
     }
   });
-  const ax = document.createElementNS(ns, 'text');
-  ax.setAttribute('x', 2); ax.setAttribute('y', 12); ax.setAttribute('class', 'chart-label');
-  ax.textContent = String(max);
-  svg.appendChild(ax);
   return svg;
 }
 

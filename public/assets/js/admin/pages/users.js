@@ -1,5 +1,5 @@
 import { h, mount, get, post, del, fmt, rarityBadge, debounce } from '../../lib.js';
-import { stat, card, table, pager, act, confirmDialog, modal } from '../ui.js';
+import { stat, card, table, pager, act, confirmDialog, modal, promptDialog } from '../ui.js';
 import { REJECT_LABEL } from './common.js';
 
 export async function users({ el, params }) {
@@ -42,7 +42,7 @@ async function detail(el, id) {
       h('button', { class: 'btn sm', onclick: () => addPokemon(id, reload) }, '➕ Aggiungi Pokémon'),
       banned
         ? h('button', { class: 'btn sm', onclick: async () => { await act(() => del(`/api/admin/users/${id}/ban`), 'Utente riammesso'); reload(); } }, 'Riammetti')
-        : h('button', { class: 'btn sm danger', onclick: async () => { const reason = prompt('Motivo dell\'esclusione (facoltativo):') ?? null; if (reason === null) return; await act(() => post(`/api/admin/users/${id}/ban`, { reason }), 'Utente escluso'); reload(); } }, 'Escludi dal gioco'),
+        : h('button', { class: 'btn sm danger', onclick: async () => { const reason = await promptDialog(`Escludere ${u.display_name} dal gioco? I suoi tentativi verranno rifiutati e i comandi ignorati. Motivo (facoltativo):`, { okLabel: 'Escludi', danger: true }); if (reason === null) return; await act(() => post(`/api/admin/users/${id}/ban`, { reason }), 'Utente escluso'); reload(); } }, 'Escludi dal gioco'),
       h('button', { class: 'btn sm danger', onclick: async () => {
         if (!await confirmDialog(`Vuoi davvero azzerare il Pokédex di ${u.display_name}? Verranno eliminati ${s.total} Pokémon. L'operazione non è reversibile (salvo ripristino di un backup).`, { danger: true, okLabel: 'Azzera Pokédex' })) return;
         await act(() => post(`/api/admin/users/${id}/reset`), 'Pokédex azzerato'); reload();

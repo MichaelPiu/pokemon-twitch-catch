@@ -119,8 +119,8 @@ tr.click:hover td { background: rgba(255,255,255,0.03); }
 .state-ERROR { --c: #ff3b6b; }
 .state-pill { background: color-mix(in srgb, var(--c) 18%, transparent); border-color: var(--c); color: var(--c); }
 
-.chart { width: 100%; height: 180px; display: block; }
-.chart-label { fill: var(--muted); font-size: 10px; font-family: var(--font); }
+.chart { width: 100%; height: auto; max-height: 240px; display: block; }
+.chart-label { fill: var(--muted); font-size: 12px; font-family: var(--font); }
 
 .mon { display: flex; align-items: center; gap: 10px; }
 .mon img { width: 48px; height: 48px; object-fit: contain; image-rendering: auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }

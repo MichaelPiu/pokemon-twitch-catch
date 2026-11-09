@@ -1,6 +1,7 @@
 import { h, mount, get, post, put, patch, del, fmt } from '../../lib.js';
 import { card, table, act, confirmDialog, modal } from '../ui.js';
 import { stateRow } from './common.js';
+import { onLive } from '../main.js';
 
 export async function twitch({ el }) {
   let pollTimer = null;
@@ -103,7 +104,14 @@ export async function twitch({ el }) {
     }).catch(() => {});
   };
   await load();
-  return () => clearInterval(pollTimer);
+  // Ricarica la pagina quando cambia lo stato (connessione, LIVE/OFFLINE), salvo durante un'autorizzazione in corso.
+  let t = null;
+  const off = onLive((type) => {
+    if (type !== 'state' || document.querySelector('.code-box')) return;
+    clearTimeout(t);
+    t = setTimeout(() => load().catch(() => {}), 300);
+  });
+  return () => { clearInterval(pollTimer); clearTimeout(t); off(); };
 }
 
 function rewardsCard(rewards, balls, connected, reload) {
