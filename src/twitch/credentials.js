@@ -54,6 +54,24 @@ export class TwitchCredentials {
     this.save(r);
   }
 
+  // Token revocato o non più rinnovabile: lo segna (senza cancellarlo) finché
+  // l'account non viene ricollegato o il rinnovo torna a funzionare.
+  markInvalid(role, reason) {
+    const r = this.raw();
+    if (!r[role]) return;
+    r[role].authError = { at: new Date().toISOString(), reason: String(reason || 'token non valido').slice(0, 200) };
+    this.save(r);
+  }
+
+  authError(role) { return this.raw()[role]?.authError || null; }
+
+  clearAuthError(role) {
+    const r = this.raw();
+    if (!r[role]?.authError) return;
+    delete r[role].authError;
+    this.save(r);
+  }
+
   clearToken(role) {
     const r = this.raw();
     delete r[role];
@@ -63,7 +81,7 @@ export class TwitchCredentials {
   // Vista sicura per la dashboard.
   publicView() {
     const r = this.raw();
-    const tok = (t) => t ? { connected: true, login: t.login, displayName: t.displayName, userId: t.userId, scopes: t.scopes || [], expiresAt: t.expiresAt, updatedAt: t.updatedAt } : { connected: false };
+    const tok = (t) => t ? { connected: true, login: t.login, displayName: t.displayName, userId: t.userId, scopes: t.scopes || [], expiresAt: t.expiresAt, updatedAt: t.updatedAt, authError: t.authError || null } : { connected: false };
     return {
       clientId: r.clientId || '',
       clientSecretSet: !!r.clientSecret,

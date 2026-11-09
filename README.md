@@ -117,12 +117,12 @@ Dockerfile, docker-compose.yml, .github/workflows/ci.yml, scripts/, docs/
 Umbrel installa app di terze parti tramite i **Community App Store**: un repository Git che contiene `umbrel-app-store.yml` e una cartella per ogni app (`umbrel-app.yml` + `docker-compose.yml`). Umbrel **non compila** i Dockerfile: scarica un'immagine già pubblicata su un registry.
 
 - **Repository dello store (pubblico, nessun codice sorgente)**: <https://github.com/MichaelPiu/piu-umbrel-app-store> — store `piu`, app `piu-live-catch`.
-- **Repository di sviluppo (questo, privato)**: contiene il codice e la "sorgente" del pacchetto (`umbrel-app-store.yml`, `piu-live-catch/`, `store/`). Lo store pubblico si genera con `scripts/publish-store.sh`.
+- **Repository di sviluppo (questo, pubblico)**: <https://github.com/MichaelPiu/pokemon-twitch-catch>, contiene il codice e la "sorgente" del pacchetto (`umbrel-app-store.yml`, `piu-live-catch/`, `store/`). Lo store pubblico si genera con `scripts/publish-store.sh`.
 - **Immagine**: `ghcr.io/michaelpiu/pokemon-twitch-catch`, costruita da GitHub Actions per `linux/amd64` e `linux/arm64` e, nello store, fissata per tag **e** digest.
 
 ### Metodo A — Community App Store (consigliato)
 
-Prerequisito una tantum: l'immagine Docker su GitHub Container Registry deve essere **pubblica**, perché Umbrel la scarica senza credenziali. Vedi [Cosa devi autorizzare tu](#cosa-devi-autorizzare-tu): renderla pubblica rende leggibile anche il codice JavaScript contenuto nell'immagine.
+Prerequisito: l'immagine Docker su GitHub Container Registry deve essere **pubblica**, perché Umbrel la scarica senza credenziali (lo controlla l'Action dello store a ogni modifica).
 
 Installazione:
 1. Apri l'interfaccia di Umbrel (`http://umbrel.local`).
@@ -133,7 +133,7 @@ Installazione:
 
 I dati vengono salvati in `~/umbrel/app-data/piu-live-catch/data` e sono inclusi nei backup di Umbrel.
 
-### Metodo B — Installazione manuale via SSH (funziona anche con repository privato)
+### Metodo B — Installazione manuale via SSH (compila l'immagine sul server)
 
 Questo metodo usa Docker Compose direttamente sul server Umbrel. L'app **non comparirà** nella schermata di Umbrel, ma si riavvia da sola (`restart: unless-stopped`) e conserva i dati.
 
@@ -144,8 +144,6 @@ ssh umbrel@umbrel.local
 ```bash
 git clone https://github.com/MichaelPiu/pokemon-twitch-catch.git ~/livecatch
 ```
-
-(Per un repository privato GitHub chiede utente e un *Personal Access Token* con permesso di sola lettura sul repository, al posto della password.)
 
 ```bash
 cd ~/livecatch && sh scripts/install-umbrel-ssh.sh
@@ -200,16 +198,26 @@ L'app **non** espone nulla su Internet: è raggiungibile solo dalla rete locale 
 - **Origin e Host**: il WebSocket della dashboard (`/ws/admin`) accetta la connessione solo se l'`Origin` del browser coincide con l'host della dashboard (o con `ALLOWED_ORIGINS`) e se l'host è ammesso. Le richieste che modificano dati da un'altra origine vengono rifiutate anche con cookie e token CSRF validi. L'overlay (`/overlay`, `/ws/overlay`) resta pubblico e funziona da OBS.
 - **Sessioni**: il cookie `HttpOnly`, `SameSite=Strict` vale solo per il browser (User-Agent) e, per impostazione predefinita, per l'indirizzo IP da cui hai fatto il login. Si chiude dopo 12 ore di inattività (configurabile) e comunque dopo 7 giorni. Diventa `Secure` da solo quando la dashboard è aperta in HTTPS tramite un proxy fidato.
 
-**Il limite che solo tu puoi chiudere: i cookie non sono isolati per porta.** Su Umbrel tutte le app stanno su `umbrel.local` (porte diverse) e il browser invia i cookie di `umbrel.local` a **ogni** app. Un'app malevola installata sullo stesso Umbrel riceverebbe quindi il cookie della dashboard. Il vincolo a IP + browser lo rende inutilizzabile da un altro indirizzo, ma la soluzione completa è un **hostname dedicato**: il cookie creato su `livecatch.lan` non viene mai inviato a `umbrel.local`.
+**Il limite che solo tu puoi chiudere: i cookie non sono isolati per porta.** Su Umbrel tutte le app stanno su `umbrel.local` (porte diverse) e il browser invia i cookie di `umbrel.local` a **ogni** app. Un'app malevola installata sullo stesso Umbrel riceverebbe quindi il cookie della dashboard. Il vincolo a IP + browser lo rende inutilizzabile da un altro indirizzo. Con un **hostname dedicato** il cookie creato su `livecatch.lan` non viene mai inviato a `umbrel.local`. Resta un limite: un'app malevola potrebbe portare il browser su `livecatch.lan:<sua porta>` per ricevere il cookie. In quel caso il vincolo a IP + browser lo rende comunque inutilizzabile, quindi tieni attiva l'opzione *Sessione valida solo dall'indirizzo IP del login*.
 
 ### Hostname dedicato (consigliato)
 
-1. Crea un nome che punti all'IP del server Umbrel (es. `192.168.1.50`), in uno di questi modi:
-   - **router / Pi-hole / AdGuard Home**: aggiungi un record DNS locale `livecatch.lan → 192.168.1.50` (vale per tutti i dispositivi di casa);
-   - **solo sul PC da cui usi la dashboard**: aggiungi la riga `192.168.1.50 livecatch.lan` al file `hosts` (Windows: `C:\Windows\System32\drivers\etc\hosts`, macOS/Linux: `/etc/hosts`).
-2. Apri `http://livecatch.lan:8788/admin` e accedi.
-3. *Impostazioni → Sicurezza dell'accesso*: scrivi `livecatch.lan` in **Hostname dedicati** e salva. L'app accetta il salvataggio solo se stai già usando quel nome, così non resti chiuso fuori. Le altre sessioni vengono chiuse.
-4. Da quel momento `http://umbrel.local:8788/admin` mostra solo il link al nuovo indirizzo e non crea più cookie. **Overlay e pagine pubbliche continuano a funzionare su qualsiasi indirizzo** (OBS non va riconfigurato).
+In breve:
+
+1. Assegna al server Umbrel un **IP fisso** (prenotazione DHCP sul router).
+2. Crea un nome (es. `livecatch.lan`) che punti a quell'IP:
+   - con un record DNS locale sul router, Pi-hole o AdGuard;
+   - oppure nel file `hosts` del PC.
+3. Apri `http://livecatch.lan:8788/admin` e accedi.
+4. *Impostazioni → Sicurezza dell'accesso → Hostname dedicati*: scrivi `livecatch.lan` e salva. L'app accetta il salvataggio solo se stai già usando quel nome, così non resti chiuso fuori.
+
+Da quel momento:
+- `umbrel.local:8788/admin` (anche dall'icona dell'app in Umbrel) mostra solo il link al nuovo indirizzo e non crea cookie;
+- overlay e pagine pubbliche funzionano su qualsiasi indirizzo, quindi OBS non va riconfigurato.
+
+Guida completa con i comandi per macOS, Windows, router e Pi-hole, i nomi da evitare, le verifiche e il ripristino: [docs/UMBREL.md → Hostname dedicato](docs/UMBREL.md#hostname-dedicato-passo-per-passo).
+
+Con il Metodo B puoi anche impostarlo da file: `ADMIN_HOSTS=livecatch.lan` in `.env`, poi `docker compose up -d`. In questo caso l'impostazione della dashboard è bloccata.
 
 Se resti chiuso fuori, il file `reset-admin-password` (vedi [Risoluzione problemi](#risoluzione-problemi)) reimposta la password **e** rimuove l'hostname dedicato.
 
@@ -234,15 +242,32 @@ Se vuoi che le risposte in chat arrivino da un account separato (es. `MioCanaleB
 
 | Account | Scope | A cosa serve |
 |---|---|---|
-| Canale | `channel:read:redemptions` | Ricevere le riscossioni dei punti canale (EventSub) |
-| Canale | `channel:manage:redemptions` | Creare/modificare le ricompense, rimborsare o completare le riscossioni |
-| Canale | `user:read:chat` | Leggere la chat (EventSub `channel.chat.message`) per i comandi |
-| Canale | `user:write:chat` | Rispondere in chat se non usi un bot |
-| Bot (facoltativo) | `user:write:chat` | Rispondere in chat come bot |
+| Canale | `channel:read:redemptions` | Leggere ricompense e riscatti. È già incluso in `channel:manage:redemptions`, che Twitch accetta al suo posto per gli eventi dei riscatti: è richiesto per compatibilità ma non è indispensabile |
+| Canale | `channel:manage:redemptions` | Creare e modificare le ricompense (anche la pausa), leggere i riscatti in coda, rimborsarli o completarli (*Update Redemption Status*) |
+| Canale | `user:read:chat` | Leggere la chat (EventSub `channel.chat.message`, con il canale come utente che legge) |
+| Canale | `user:write:chat` | Rispondere in chat se non usi un bot, o se il token del bot viene revocato |
+| Bot (facoltativo) | `user:write:chat` | Rispondere in chat come bot (*Send Chat Message* con token utente) |
+
+Verifica sulla documentazione ufficiale Twitch (novembre 2026): gli scope corrispondono ai requisiti degli endpoint e degli eventi usati. Le informazioni provengono da `dev.twitch.tv` tramite i risultati di ricerca: le pagine non si aprono direttamente dalla rete di sviluppo, che rifiuta il loro certificato TLS. Fonti:
+- [Scope](https://dev.twitch.tv/docs/authentication/scopes/)
+- [API Reference](https://dev.twitch.tv/docs/api/reference)
+- [Tipi di sottoscrizione EventSub](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/)
+
+Non sono richiesti `user:bot` / `channel:bot`: servono solo per il badge "Chat Bot" con token applicazione, che l'app non usa.
 
 Gli eventi `stream.online` / `stream.offline` non richiedono scope. Eventi EventSub usati: `stream.online`, `stream.offline`, `channel.channel_points_custom_reward_redemption.add`, `channel.channel_points_custom_reward_redemption.update`, `channel.chat.message`.
 
-I token vengono rinnovati automaticamente e validati ogni ora (come richiesto da Twitch). Se un token viene revocato lo stato diventa **ERROR** e la dashboard chiede di ricollegare l'account.
+I token vengono rinnovati automaticamente e validati ogni ora (come richiesto da Twitch).
+
+**Token revocato** (app scollegata da Twitch, password cambiata, rinnovo rifiutato):
+
+- **Account del canale**:
+  - lo stato diventa **ERROR** subito, alla revoca delle sottoscrizioni EventSub, o al controllo periodico successivo;
+  - il gioco smette di accettare lanci;
+  - la dashboard mostra un avviso con le ricompense che **potrebbero restare riscattabili** su Twitch, perché senza un token valido non è possibile metterle in pausa: per sicurezza mettile in pausa a mano dal Creator Dashboard di Twitch;
+  - i riscatti fatti nel frattempo restano in coda (i punti non sono persi): i tentativi di rimborso non si esauriscono e, quando premi **Ricollega**, l'app mette in pausa le ricompense e rimborsa tutti i riscatti rimasti in coda;
+  - se il rinnovo torna a funzionare da solo, l'app ricollega EventSub e ricrea le sottoscrizioni.
+- **Bot**: il gioco continua. Le risposte passano all'account del canale finché non ricolleghi il bot.
 
 ## Creazione delle Channel Points Rewards
 
@@ -349,7 +374,8 @@ Il database viene migrato automaticamente all'avvio con migrazioni incrementali 
 | Problema | Soluzione |
 |---|---|
 | Stato **ERROR – not_configured** | Completa i passi 1 e 2 della sezione Twitch. |
-| Stato **ERROR – auth_error** | Il token è stato revocato o è scaduto: *Twitch → Ricollega*. |
+| Stato **ERROR – auth_error** | Il token del canale è stato revocato o non si rinnova: *Twitch → Account del canale → Ricollega*. Finché non lo fai, metti in pausa a mano le ricompense indicate nell'avviso. Al ricollegamento l'app le mette in pausa e rimborsa i riscatti in coda. |
+| Avviso "Token del bot non più valido" | Il gioco continua e risponde l'account del canale. *Twitch → Account bot → Ricollega*. |
 | Stato **PAUSED** | Connessione a Twitch persa: il gioco è sospeso in sicurezza e riprende da solo appena la diretta viene confermata. Controlla la connessione Internet del server. |
 | Vado in live ma il gioco non parte | *Twitch → Testa connessione*. Verifica che sia collegato l'account del canale che trasmette. Il controllo periodico (60 s) rileva la diretta anche se l'evento è andato perso. |
 | La sottoscrizione `redemption` risulta *failed* | Il canale non è Affiliate/Partner o manca lo scope: ricollega l'account. |
@@ -428,7 +454,7 @@ scripts/publish-store.sh ../piu-umbrel-app-store sha256:<digest>
 
 Alcuni passaggi richiedono i tuoi account o una tua decisione e non sono stati eseguiti dallo sviluppatore:
 
-1. **Visibilità dell'immagine Docker (decisione tua, bloccante per il Metodo A)**: Umbrel scarica le immagini senza credenziali, quindi il pacchetto GHCR `pokemon-twitch-catch` deve essere **pubblico** (GitHub → profilo → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility* → *Public*). ⚠️ L'immagine contiene il codice JavaScript dell'app in chiaro: renderla pubblica significa renderlo leggibile a chiunque, anche se il repository resta privato. Se non vuoi, l'alternativa è il Metodo B (compilazione sul server) oppure `docker login ghcr.io` sul server Umbrel via SSH con un token di sola lettura (autenticazione manuale, non gestita dall'App Store).
+1. **Immagine Docker pubblica**: il pacchetto GHCR `pokemon-twitch-catch` deve restare **pubblico** perché Umbrel lo scarica senza credenziali (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*). Codice e immagine sono pubblici per scelta del proprietario.
 2. **Twitch**: creare l'applicazione su dev.twitch.tv e autorizzare l'account del canale (e l'eventuale bot) con il codice di attivazione.
 3. **Affiliate/Partner**: necessario per i punti canale.
 4. **Hostname dedicato** (consigliato): record DNS locale o file `hosts`, vedi [Sicurezza dell'accesso](#sicurezza-dellaccesso).

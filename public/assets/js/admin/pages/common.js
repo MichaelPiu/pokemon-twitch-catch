@@ -34,3 +34,26 @@ export function spawnBox(sp) {
 export function monCell(name, dex, shiny) {
   return h('span', {}, h('span', { class: 'muted' }, fmt.dex(dex), ' '), name, shiny ? ' ✨' : '');
 }
+
+// Avvisi su token revocati e ricompense che potrebbero restare riscattabili su
+// Twitch mentre il gioco non accetta lanci.
+export function twitchAuthNotices(st) {
+  if (!st) return [];
+  const out = [];
+  const b = st.authErrors?.broadcaster;
+  const bot = st.authErrors?.bot;
+  if (b) out.push(h('div', { class: 'notice err', style: { marginBottom: '10px' } },
+    h('b', {}, '🔑 Autorizzazione dell\'account del canale non più valida. '),
+    'Twitch ha rifiutato il token (revocato, password cambiata o app scollegata). Vai su ', h('a', { href: '#/twitch' }, 'Twitch'),
+    ' → Account del canale → ', h('b', {}, 'Ricollega'), '. Al ricollegamento l\'app mette in pausa le ricompense e rimborsa i riscatti rimasti in coda.'));
+  if (bot) out.push(h('div', { class: 'notice warn', style: { marginBottom: '10px' } },
+    h('b', {}, '🤖 Token del bot non più valido. '), 'Il gioco continua: nel frattempo le risposte in chat partono dall\'account del canale. Ricollega il bot dalla pagina Twitch.'));
+  const risk = st.rewardsPause?.atRisk || [];
+  if (risk.length) out.push(h('div', { class: 'notice err', style: { marginBottom: '10px' } },
+    h('b', {}, `⚠️ ${risk.length === 1 ? '1 ricompensa potrebbe essere ancora riscattabile' : `${risk.length} ricompense potrebbero essere ancora riscattabili`} su Twitch mentre il gioco è fermo: `),
+    risk.map((r) => r.title).join(', '), '. ',
+    b ? 'L\'app non può metterle in pausa finché non ricolleghi l\'account del canale. Per sicurezza mettile in pausa a mano da Twitch (Creator Dashboard → Ricompense). '
+      : 'L\'app ritenta la pausa a ogni controllo. ',
+    'I riscatti fatti nel frattempo restano in coda e vengono rimborsati automaticamente.'));
+  return out;
+}

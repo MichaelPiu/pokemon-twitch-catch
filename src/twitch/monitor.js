@@ -55,6 +55,7 @@ export class TwitchMonitor {
 
   async start() {
     this.started = true;
+    this.authFailed = false;
     if (!this.configured()) {
       this.sm.goTo(STATES.ERROR, 'not_configured');
       this.lastError = 'Twitch non configurato: completa la procedura guidata nella sezione Twitch';
@@ -67,7 +68,7 @@ export class TwitchMonitor {
     this.eventsub.on('connected', (e) => this.onConnected(e).catch((err) => this.fail(err)));
     this.eventsub.on('disconnected', (e) => this.onDisconnected(e));
     this.eventsub.on('notification', (n) => this.onNotification(n));
-    this.eventsub.on('revocation', (s) => { this.lastError = `Sottoscrizione revocata: ${s?.type} (${s?.status})`; });
+    this.eventsub.on('revocation', (s) => this.onRevocation(s));
     this.eventsub.start();
     this.startTimers();
   }
@@ -101,8 +102,22 @@ export class TwitchMonitor {
   fail(err) {
     this.lastError = err.message;
     this.log.error('Errore Twitch', { message: err.message });
+    if (err.authInvalid || err.status === 401) {
+      this.creds.markInvalid('broadcaster', err.message);
+      this.authFailed = true;
+    }
     if (err.authInvalid || err.status === 401 || err.status === 403) {
       this.sm.goTo(STATES.ERROR, 'auth_error');
+    }
+  }
+
+  // Twitch revoca le sottoscrizioni quando il canale scollega l'app o il token
+  // perde validità: il gioco si ferma subito invece di attendere il controllo periodico.
+  onRevocation(sub) {
+    this.lastError = `Sottoscrizione revocata da Twitch: ${sub?.type} (${sub?.status})`;
+    this.log.error('Sottoscrizione EventSub revocata', { type: sub?.type, status: sub?.status });
+    if (['authorization_revoked', 'user_removed'].includes(sub?.status)) {
+      this.fail(Object.assign(new Error(`Autorizzazione Twitch revocata (${sub.status}): ricollega l'account del canale`), { authInvalid: true }));
     }
   }
 
@@ -135,6 +150,20 @@ export class TwitchMonitor {
       this.hub.admin('rewards_pause', this.lastPauseSync);
     }).catch((e) => this.log.warn('Sincronizzazione pausa ricompense fallita', { message: e.message }));
     return this.pauseChain;
+  }
+
+  // Ricompense che potrebbero essere riscattabili su Twitch mentre il gioco non
+  // accetta lanci: create dall'app ma non confermate in pausa (es. token revocato),
+  // oppure collegate a mano (Twitch non ne consente la pausa via API).
+  rewardsAtRisk() {
+    if (!this.alive() || !this.desiredPaused()) return { atRisk: [], linkedActive: 0 };
+    const autoPause = !!this.gameSettings.get('rewards').autoPause;
+    const atRisk = this.db.all(
+      `SELECT id, title, sync_error FROM twitch_rewards WHERE is_enabled = 1 AND managed_by_app = 1
+       AND (? = 0 OR is_paused = 0 OR sync_error IS NOT NULL)`, autoPause ? 1 : 0)
+      .map((r) => ({ id: r.id, title: r.title, error: r.sync_error }));
+    const linkedActive = this.db.get('SELECT COUNT(*) AS n FROM twitch_rewards WHERE is_enabled = 1 AND managed_by_app = 0').n;
+    return { atRisk, linkedActive };
   }
 
   reconcileSoon(reason, delayMs = 5000) {
@@ -236,6 +265,14 @@ export class TwitchMonitor {
       this.fail(e);
       return;
     }
+    if (this.authFailed) {
+      // Il rinnovo del token è tornato a funzionare: le sottoscrizioni potrebbero
+      // essere state revocate, quindi si ricollega EventSub da capo.
+      this.authFailed = false;
+      this.creds.clearAuthError('broadcaster');
+      this.log.info('Autorizzazione Twitch di nuovo valida: riconnessione');
+      return this.restart();
+    }
     if (this.sm.state === STATES.ERROR && this.eventsub?.connected) this.sm.goTo(STATES.CONNECTING, 'recovered');
     // Ritenta la pausa/riattivazione delle ricompense non riuscita e recupera
     // periodicamente i riscatti rimasti in coda.
@@ -268,8 +305,19 @@ export class TwitchMonitor {
       if (!t?.accessToken) continue;
       const info = await this.oauth.validate(t.accessToken).catch(() => undefined);
       if (info === undefined) continue; // rete non disponibile: riprova più tardi
+      if (info) { this.creds.clearAuthError(role); continue; }
       if (!info) {
-        try { await this.oauth.refresh(role); } catch (e) { this.fail(Object.assign(e, { authInvalid: true })); }
+        try {
+          await this.oauth.refresh(role);
+        } catch (e) {
+          if (role === 'bot') {
+            // Il bot serve solo per la chat: il gioco continua e risponde l'account del canale.
+            this.creds.markInvalid('bot', e.message);
+            this.log.error('Token del bot non più valido: ricollega il bot. Nel frattempo risponde l\'account del canale', { message: e.message });
+          } else {
+            this.fail(Object.assign(e, { authInvalid: true }));
+          }
+        }
       }
     }
   }
@@ -393,7 +441,8 @@ export class TwitchMonitor {
       eventsReceived: this.eventsReceived,
       chat: this.chat?.stats(),
       reconcile: this.reconciler.last,
-      rewardsPause: { autoPause: !!this.gameSettings.get('rewards').autoPause, desiredPaused: this.desiredPaused(), last: this.lastPauseSync },
+      rewardsPause: { autoPause: !!this.gameSettings.get('rewards').autoPause, desiredPaused: this.desiredPaused(), last: this.lastPauseSync, ...this.rewardsAtRisk() },
+      authErrors: { broadcaster: this.creds.authError('broadcaster'), bot: this.creds.authError('bot') },
     };
   }
 }

@@ -1,6 +1,6 @@
 import { h, mount, get, post, put, patch, del, fmt } from '../../lib.js';
 import { card, table, act, confirmDialog, modal, toast } from '../ui.js';
-import { stateRow, REJECT_LABEL } from './common.js';
+import { stateRow, REJECT_LABEL, twitchAuthNotices } from './common.js';
 import { onLive } from '../main.js';
 
 export async function twitch({ el }) {
@@ -18,7 +18,9 @@ export async function twitch({ el }) {
       return card(title,
         t.connected
           ? h('div', {},
-            h('div', { class: 'notice ok' }, `✅ Collegato come `, h('b', {}, t.login), ` (ID ${t.userId}) · aggiornato ${fmt.dt(t.updatedAt)}`),
+            t.authError
+              ? h('div', { class: 'notice err' }, `❌ Token non più valido per `, h('b', {}, t.login), ` (${fmt.dt(t.authError.at)}): premi Ricollega`)
+              : h('div', { class: 'notice ok' }, `✅ Collegato come `, h('b', {}, t.login), ` (ID ${t.userId}) · aggiornato ${fmt.dt(t.updatedAt)}`),
             h('div', { class: 'muted small', style: { marginTop: '6px' } }, `Scope concessi: ${(t.scopes || []).join(', ') || '—'}`),
             h('div', { class: 'row', style: { marginTop: '10px' } },
               h('button', { class: 'btn', onclick: () => startAuth(role) }, 'Ricollega'),
@@ -73,6 +75,7 @@ export async function twitch({ el }) {
         h('div', { class: 'muted small', style: { marginTop: '8px' } },
           `Ultimo controllo API: ${st.lastPoll ? `${fmt.dt(st.lastPoll.at)} (${st.lastPoll.ok ? (st.lastPoll.live ? 'LIVE' : 'offline') : 'errore'})` : '—'} · Eventi ricevuti: ${st.eventsReceived} · Messaggi bot inviati: ${st.chat?.sent ?? 0}`),
         st.lastError ? h('div', { class: 'notice err', style: { marginTop: '10px' } }, st.lastError) : null,
+        h('div', { style: { marginTop: '10px' } }, twitchAuthNotices(st)),
         st.subscriptions?.length ? h('div', { class: 'row', style: { marginTop: '10px' } }, st.subscriptions.map((s) => h('span', { class: 'pill', title: s.error || '' },
           h('span', { class: `dot ${s.status === 'enabled' ? 'ok' : 'warn'}` }), s.type.replace('channel.channel_points_custom_reward_redemption', 'redemption')))) : null,
         testOut),

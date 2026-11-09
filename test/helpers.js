@@ -44,6 +44,8 @@ export class FakeTwitch {
     this.goneRedemptions = new Set(); // id per cui Twitch risponde 404
     this.foreignRewards = new Set(); // ricompense non create da questo Client ID (403)
     this.calls = [];
+    // Token revocati (access o refresh): Helix e /validate rispondono 401, il rinnovo 400.
+    this.revokedTokens = new Set();
     this.fetch = this.fetch.bind(this);
   }
 
@@ -54,11 +56,36 @@ export class FakeTwitch {
     const body = opts.body && typeof opts.body === 'string' && opts.body.startsWith('{') ? JSON.parse(opts.body) : opts.body;
     const res = (status, data) => new Response(data === undefined ? '' : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
     if (u.pathname.startsWith('/oauth2')) {
-      if (u.pathname === '/oauth2/validate') return this.tokenValid ? res(200, { client_id: CLIENT_ID, login: 'streamer', user_id: BROADCASTER_ID, scopes: [] }) : res(401, { message: 'invalid' });
+      const form = typeof opts.body === 'string' && !opts.body.startsWith('{') ? new URLSearchParams(opts.body) : null;
+      // Device Code Flow (collegamento account): il primo polling è "pending", il secondo autorizza.
+      if (u.pathname === '/oauth2/device') {
+        this.deviceRequests = [...(this.deviceRequests || []), { clientId: form?.get('client_id'), scopes: form?.get('scopes') }];
+        const role = form?.get('scopes') === 'user:write:chat' ? 'bot' : 'broadcaster';
+        return res(200, { device_code: `dc-${role}`, user_code: role === 'bot' ? 'BOT-CODE' : 'LIVE-CODE', verification_uri: 'https://www.twitch.tv/activate', expires_in: 1800, interval: 1 });
+      }
+      if (u.pathname === '/oauth2/token' && form?.get('grant_type') === 'urn:ietf:params:oauth:grant-type:device_code') {
+        const dc = form.get('device_code');
+        this.devicePolls = this.devicePolls || {};
+        this.devicePolls[dc] = (this.devicePolls[dc] || 0) + 1;
+        this.deviceTokenRequests = [...(this.deviceTokenRequests || []), Object.fromEntries(form)];
+        if (this.devicePolls[dc] === 1) return res(400, { status: 400, message: 'authorization_pending' });
+        const role = dc.replace('dc-', '');
+        return res(200, { access_token: `dev-${role}-access`, refresh_token: `dev-${role}-refresh`, expires_in: 14000, scope: form.get('scopes').split(' ') });
+      }
+      if (u.pathname === '/oauth2/validate') {
+        if (!this.tokenValid) return res(401, { message: 'invalid' });
+        const auth = String(opts.headers?.Authorization || '');
+        if (this.revokedTokens.has(auth.replace(/^OAuth /, ''))) return res(401, { status: 401, message: 'invalid access token' });
+        if (auth.includes('dev-bot')) return res(200, { client_id: CLIENT_ID, login: 'mio_bot', user_id: '5000', scopes: ['user:write:chat'] });
+        return res(200, { client_id: CLIENT_ID, login: 'streamer', user_id: BROADCASTER_ID, scopes: [] });
+      }
+      if (u.pathname === '/oauth2/token' && this.revokedTokens.has(form?.get('refresh_token'))) return res(400, { status: 400, message: 'Invalid refresh token' });
       if (u.pathname === '/oauth2/token') return res(200, { access_token: 'newaccess', refresh_token: 'newrefresh', expires_in: 14000, scope: [] });
       return res(404, {});
     }
     if (this.helixDown) throw new TypeError('fetch failed');
+    const bearer = String(opts.headers?.Authorization || '').replace(/^Bearer /, '');
+    if (this.revokedTokens.has(bearer)) { this.unauthorized = (this.unauthorized || 0) + 1; return res(401, { status: 401, message: 'Invalid OAuth token' }); }
     const p = u.pathname.replace('/helix', '');
     if (p === '/streams') return res(200, { data: this.live ? [{ id: this.live.id, title: this.live.title || 'Live', started_at: this.live.started_at || new Date().toISOString(), type: 'live' }] : [] });
     if (p === '/eventsub/subscriptions' && method === 'POST') { this.subscriptions.push(body); return res(202, { data: [{ id: `sub${this.subscriptions.length}`, status: 'enabled', type: body.type }] }); }
@@ -123,6 +150,15 @@ export class FakeEventSub {
     });
     for (const ws of this.sockets) ws.send(msg);
     return messageId;
+  }
+
+  // Revoca di una sottoscrizione (es. il canale scollega l'app: status "authorization_revoked").
+  revoke(type, status = 'authorization_revoked') {
+    const msg = JSON.stringify({
+      metadata: { message_id: `r${++this.msgCounter}`, message_type: 'revocation', message_timestamp: new Date().toISOString(), subscription_type: type, subscription_version: '1' },
+      payload: { subscription: { id: 'sub-x', type, version: '1', status, condition: {} } },
+    });
+    for (const ws of this.sockets) ws.send(msg);
   }
 
   dropAll() { for (const ws of this.sockets) ws.terminate(); }

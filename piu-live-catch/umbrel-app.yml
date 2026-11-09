@@ -2,7 +2,7 @@ manifestVersion: 1
 id: piu-live-catch
 category: social
 name: Live Catch
-version: "1.0.0-rc.1"
+version: "1.0.0-rc.2"
 tagline: Gioco di cattura per Twitch con i punti canale
 description: >-
   Live Catch è un gioco interattivo per la tua diretta Twitch.
@@ -17,11 +17,11 @@ description: >-
 
   Progetto amatoriale non ufficiale: Pokémon e i relativi marchi appartengono ai rispettivi
   titolari (Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company). Nessuna affiliazione.
-releaseNotes: "Versione candidata alla produzione. Sicurezza: proxy fidati, controllo Origin/Host del WebSocket amministrativo, sessioni legate a browser e indirizzo IP, hostname dedicato opzionale per la dashboard. Punti canale: ricompense dell'app in pausa automatica quando il gioco non è attivo, recupero dei riscatti rimasti in coda dopo le disconnessioni, ritentativi dei rimborsi. Backup automatico prima degli aggiornamenti del database."
+releaseNotes: "Seconda versione candidata. Token Twitch revocati: il gioco si ferma subito, la dashboard indica le ricompense che potrebbero restare riscattabili, i rimborsi dei riscatti in coda non vanno persi e vengono completati al ricollegamento; un bot revocato non ferma più il gioco (risponde l'account del canale). Documentazione dell'hostname dedicato su Umbrel."
 developer: MichaelPiu
 website: https://github.com/MichaelPiu/piu-umbrel-app-store
 dependencies: []
-repo: https://github.com/MichaelPiu/piu-umbrel-app-store
+repo: https://github.com/MichaelPiu/pokemon-twitch-catch
 support: https://github.com/MichaelPiu/piu-umbrel-app-store/issues
 port: 8788
 gallery: []

@@ -63,9 +63,14 @@ export class RedemptionReconciler {
       // 404: la riscossione non è più in coda (già gestita a mano su Twitch o eliminata):
       // inutile ritentare.
       const final = e.status === 404;
-      const msg = final ? 'riscossione non più in coda su Twitch (già gestita?)' : (e.message || 'errore sconosciuto').slice(0, 300);
-      this.db.run('UPDATE capture_attempts SET status_error = ?, status_tries = ? WHERE id = ?',
-        msg, final ? MAX_TRIES : (attempt.status_tries || 0) + 1, attempt.id);
+      // Token revocato/scaduto: non consuma i tentativi, il rimborso viene
+      // completato dopo il ricollegamento dell'account.
+      const auth = !final && (e.authInvalid || e.status === 401);
+      const msg = final ? 'riscossione non più in coda su Twitch (già gestita?)'
+        : auth ? 'account Twitch del canale non autorizzato: verrà ritentato dopo il ricollegamento'
+          : (e.message || 'errore sconosciuto').slice(0, 300);
+      const tries = final ? MAX_TRIES : auth ? (attempt.status_tries || 0) : (attempt.status_tries || 0) + 1;
+      this.db.run('UPDATE capture_attempts SET status_error = ?, status_tries = ? WHERE id = ?', msg, tries, attempt.id);
       this.log.warn('Aggiornamento riscossione su Twitch non riuscito', { status, http: e.status, message: msg });
       return { ok: false, error: msg };
     }

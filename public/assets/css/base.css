@@ -134,6 +134,7 @@ tr.click:hover td { background: rgba(255,255,255,0.03); }
 .empty { padding: 26px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
 .notice { padding: 12px 14px; border-radius: 10px; background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.35); }
 .notice.err { background: rgba(255, 91, 91, 0.08); border-color: rgba(255, 91, 91, 0.45); }
+.notice.warn { background: rgba(255, 184, 77, 0.08); border-color: rgba(255, 184, 77, 0.45); }
 .notice.ok { background: rgba(61, 220, 132, 0.08); border-color: rgba(61, 220, 132, 0.4); }
 .code-box { font-size: 2rem; letter-spacing: 6px; font-weight: 800; color: var(--primary2); background: #12142199; border: 2px dashed var(--primary); border-radius: 12px; padding: 10px 18px; display: inline-block; }
 

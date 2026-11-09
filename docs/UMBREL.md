@@ -37,14 +37,119 @@ Prerequisito: immagine GHCR pubblica (vedi README → *Cosa devi autorizzare tu*
 1. Umbrel → **App Store** → **⋯** → **Community App Stores** → `https://github.com/MichaelPiu/piu-umbrel-app-store` → **Add**.
 2. Store **Piu** → **Live Catch** → **Install**.
 3. Apri `http://umbrel.local:8788/admin`, accedi con utente `admin` e la password mostrata da Umbrel e scegli la tua password.
-4. Consigliato: hostname dedicato (README → *Sicurezza dell'accesso*).
+4. Consigliato: [hostname dedicato](#hostname-dedicato-passo-per-passo).
 
 Dati: `~/umbrel/app-data/piu-live-catch/data` (database, immagini, backup, log, `secret.key`), inclusi nei backup di Umbrel.
+
+## Hostname dedicato passo per passo
+
+**Perché.** Su Umbrel tutte le app condividono l'indirizzo `umbrel.local` (cambiano solo le porte). I browser non separano i cookie per porta, quindi senza un nome dedicato il cookie della dashboard arriva anche alle altre app. Con un nome dedicato la dashboard vive su un indirizzo tutto suo.
+
+**Cosa cambia e cosa no**
+- Cambia solo l'indirizzo della dashboard (`/admin` e `/api/admin/*`).
+- Overlay (`/overlay`), WebSocket dell'overlay e pagine pubbliche funzionano su qualunque indirizzo: **OBS non va riconfigurato**.
+- La porta resta **8788**: il nome sostituisce solo `umbrel.local` o l'IP.
+
+### 1. IP fisso per Umbrel
+
+Il nome deve puntare sempre allo stesso IP.
+1. Trova l'IP del server: dal PC esegui `ping umbrel.local`, oppure via SSH esegui `hostname -I`, oppure guarda l'elenco dei dispositivi del router.
+2. Sul router crea una **prenotazione DHCP** (chiamata anche "IP statico" o "DHCP reservation") per quel dispositivo.
+
+Negli esempi l'IP è `192.168.1.50`.
+
+### 2. Scegli il nome
+
+- **Consigliati**:
+  - `livecatch.lan`;
+  - `livecatch.home.arpa` (il suffisso ufficiale per le reti domestiche, RFC 8375).
+- **Da evitare**:
+  - nomi in `.local`: sono riservati a mDNS e si confondono con `umbrel.local`; su macOS rallentano la risoluzione;
+  - `.dev`, `.app`, `.page` e altri domini pubblici: i browser forzano HTTPS e la pagina non si apre;
+  - `localhost`;
+  - un nome di dominio reale che non possiedi.
+- Il nome può contenere solo lettere, numeri, trattini e punti.
+
+### 3. Fai puntare il nome all'IP
+
+**Opzione A, per tutta la rete di casa (consigliata se hai Pi-hole o AdGuard):**
+- **Pi-hole**: *Local DNS → DNS Records*: dominio `livecatch.lan`, IP `192.168.1.50` → **Add**.
+- **AdGuard Home**: *Filtri → Riscritture DNS → Aggiungi*: `livecatch.lan` → `192.168.1.50`.
+- **Router**: molti router (FRITZ!Box, OpenWrt, UniFi, pfSense…) hanno una voce del tipo "DNS locale", "Host statici" o "DNS host override". Il nome della voce cambia da modello a modello.
+
+Se Pi-hole o AdGuard sono installati **sullo stesso Umbrel**, funziona lo stesso: devono però essere il DNS dei tuoi dispositivi.
+
+**Opzione B, solo sul PC da cui usi la dashboard:**
+
+- **macOS / Linux**, in Terminale:
+
+  ```bash
+  sudo sh -c 'echo "192.168.1.50 livecatch.lan" >> /etc/hosts'
+  ```
+
+  Solo su macOS, svuota poi la cache DNS:
+
+  ```bash
+  sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+  ```
+
+- **Windows**:
+  1. Apri il *Blocco note* come amministratore.
+  2. Apri `C:\Windows\System32\drivers\etc\hosts`.
+  3. Aggiungi in fondo la riga `192.168.1.50 livecatch.lan` e salva.
+  4. Da un prompt dei comandi esegui `ipconfig /flushdns`.
+
+- **Telefono o tablet**: il file `hosts` non è modificabile, quindi serve l'opzione A. In alternativa usa la dashboard solo dal PC.
+
+Verifica: `ping livecatch.lan` deve rispondere da `192.168.1.50`.
+
+### 4. Attiva il nome nella dashboard
+
+1. Apri **`http://livecatch.lan:8788/admin`**, **non** `umbrel.local`, e accedi.
+2. *Impostazioni → Sicurezza dell'accesso*: in **Hostname dedicati** scrivi `livecatch.lan`. Puoi inserirne più di uno, separati da virgola, per esempio anche l'IP `192.168.1.50`.
+3. **Salva**:
+   - il salvataggio viene rifiutato se il nome che stai usando non è nell'elenco, così non resti chiuso fuori;
+   - le altre sessioni aperte vengono chiuse.
+4. Aggiungi `http://livecatch.lan:8788/admin` ai preferiti.
+
+L'icona dell'app nella schermata di Umbrel continua ad aprire `umbrel.local:8788`. Lì vedrai solo la pagina *Indirizzo della dashboard* (HTTP 421) con il link al nuovo indirizzo, senza alcun cookie.
+
+### 5. Verifica
+
+1. `http://umbrel.local:8788/admin` mostra la pagina con il link e **non** chiede il login.
+2. `http://umbrel.local:8788/overlay` funziona ancora.
+3. In *Impostazioni → Sicurezza*, "Il tuo IP visto dal server" è l'IP del tuo PC, non un `172.x`/`10.x`.
+4. Facoltativo: negli strumenti per sviluppatori del browser (*Application/Archiviazione → Cookie*) il cookie della dashboard compare solo per `livecatch.lan`.
+
+Che il gateway di Umbrel inoltri le richieste senza cambiare l'host (necessario perché `livecatch.lan` funzioni) è stato verificato **sul codice sorgente** di umbrelOS (`changeOrigin: false`). Su un Umbrel reale va ancora verificato: è il punto 4 del [collaudo](#collaudo-consigliato-sul-tuo-umbrel).
+
+### Metodo B (SSH)
+
+Puoi impostarlo anche da file. In `~/livecatch/.env`:
+
+```bash
+ADMIN_HOSTS=livecatch.lan
+```
+
+Poi esegui `docker compose up -d`. Così l'impostazione nella dashboard è bloccata.
+
+### Tornare indietro
+
+- **Se accedi ancora**: svuota il campo *Hostname dedicati* e salva.
+- **Se sei rimasto chiuso fuori** (nome non più risolto, IP cambiato):
+  1. via SSH esegui `touch ~/umbrel/app-data/piu-live-catch/data/reset-admin-password`;
+  2. riavvia l'app da Umbrel.
+
+  Il reset rimuove l'hostname dedicato e crea una nuova password temporanea in `initial-admin-password.txt`, nella stessa cartella. I dati di gioco non vengono toccati.
+
+### Limite residuo
+
+Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono raggiungibili su `livecatch.lan:<porta>`. Un'app malevola potrebbe portare il browser su quell'indirizzo per ricevere il cookie. Per questo la sessione resta legata a browser e IP del login: **non disattivare** *Sessione valida solo dall'indirizzo IP del login*. Un isolamento completo richiederebbe HTTPS con un certificato dedicato, non gestito da Umbrel per le app di terze parti.
 
 ## Collaudo consigliato sul tuo Umbrel
 
 1. Installazione: l'app si apre, `http://umbrel.local:8788/health` risponde `"status":"ok"`.
-2. *Backup e Sistema*: versione `1.0.0-rc.1`, schema DB v2, crea un backup manuale.
+2. *Backup e Sistema*: versione `1.0.0-rc.2`, schema DB v2, crea un backup manuale.
 3. Riavvia l'app da Umbrel: i dati restano, il login con la tua password funziona.
 4. *Impostazioni → Sicurezza*: "Il tuo IP visto dal server" deve essere l'IP del tuo PC, **non** un 10.x/172.x. Se vedi l'indirizzo del gateway, i proxy fidati non sono riconosciuti: segnalalo.
 5. DEMO con OBS (overlay da `http://IP-UMBREL:8788/overlay`).

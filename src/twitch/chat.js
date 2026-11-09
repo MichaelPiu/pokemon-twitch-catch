@@ -29,7 +29,8 @@ export class ChatSender {
 
   sender() {
     const bot = this.creds.getToken('bot');
-    if (bot?.accessToken && bot.userId) return { role: 'bot', id: bot.userId };
+    // Un bot con token revocato non blocca la chat: risponde l'account del canale.
+    if (bot?.accessToken && bot.userId && !bot.authError) return { role: 'bot', id: bot.userId };
     const b = this.creds.getToken('broadcaster');
     return b?.userId ? { role: 'broadcaster', id: b.userId } : null;
   }
@@ -70,6 +71,11 @@ export class ChatSender {
         } catch (e) {
           this.lastError = e.message;
           this.log.warn('Errore invio chat', { message: e.message });
+          if (s.role === 'bot' && (e.authInvalid || e.status === 401)) {
+            this.creds.markInvalid('bot', e.message);
+            this.log.error('Token del bot revocato o scaduto: le risposte passano all\'account del canale finché non ricolleghi il bot');
+            if (!item.retried) this.queue.unshift({ ...item, retried: true });
+          }
         }
       }
     } finally {

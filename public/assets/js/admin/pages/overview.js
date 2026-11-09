@@ -2,6 +2,7 @@
 import { h, mount, get, fmt, RARITY, TYPE_IT, TYPE_COLOR, lineChart, debounce } from '../../lib.js';
 import { icon } from '../../icons.js';
 import { onLive } from '../main.js';
+import { twitchAuthNotices } from './common.js';
 
 const STATE = {
   LIVE: ['LIVE', 'var(--ok)'], OFFLINE: ['OFFLINE', 'var(--muted)'], CONNECTING: ['CONNESSIONE…', 'var(--warn)'],
@@ -150,8 +151,10 @@ export async function overview({ el }) {
       })) : h('div', { class: 'empty' }, 'Nessuna attività recente'));
 
     // Errori (solo se presenti)
-    mount(errPanel, d.errors.length || d.twitch.lastError ? h('section', { class: 'panel', style: { marginTop: '20px' } },
+    const authNotices = twitchAuthNotices(d.twitch);
+    mount(errPanel, d.errors.length || d.twitch.lastError || authNotices.length ? h('section', { class: 'panel', style: { marginTop: '20px' } },
       h('div', { class: 'panel-head' }, h('h2', {}, icon('x', { size: 22 }), 'Errori e avvisi')),
+      authNotices,
       d.twitch.lastError ? h('div', { class: 'notice err', style: { marginBottom: '10px' } }, d.twitch.lastError) : null,
       d.errors.length ? h('div', { class: 'log-box' }, d.errors.map((e) => h('div', { class: `log-line ${e.level}` }, `${fmt.dt(e.ts)} [${e.scope}] ${e.message}`))) : null) : null);
     tick();

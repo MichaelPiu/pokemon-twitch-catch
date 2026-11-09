@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0-rc.2 — preparazione al collaudo su Umbrel
+
+### Token Twitch revocati
+- Revoca EventSub `authorization_revoked` / `user_removed`: stato **ERROR** immediato, senza attendere il controllo periodico.
+- Token del canale revocato: segnato come non valido (visibile in dashboard). Avviso con le ricompense che potrebbero restare riscattabili su Twitch perché la pausa non è possibile senza token.
+- Rimborsi: gli errori di autorizzazione non consumano più i 6 tentativi. Al ricollegamento l'app mette in pausa le ricompense e rimborsa i riscatti rimasti in coda.
+- Se il rinnovo del token torna a funzionare, l'app ricollega EventSub e ricrea le sottoscrizioni.
+- Token del **bot** revocato: il gioco non va più in ERROR. Le risposte passano all'account del canale e il messaggio non consegnato viene reinviato.
+
+### Documentazione
+- Guida passo per passo all'hostname dedicato su Umbrel (`docs/UMBREL.md`), con il limite residuo dichiarato.
+- Scope OAuth verificati sulla documentazione Twitch.
+- Repository di sviluppo pubblico.
+
+### Test
+- Nuovi: `test/tokens.test.js` (3) e `test/audit.test.js` (4). Totale 90.
+
 ## 1.0.0-rc.1 — candidata alla produzione
 
 ### Sicurezza
