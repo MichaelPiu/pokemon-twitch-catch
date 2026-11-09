@@ -1,0 +1,25 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # Formato: <app-id>_<servizio>_1
+      APP_HOST: piu-live-catch_web_1
+      APP_PORT: 8080
+      # L'overlay /overlay deve essere raggiungibile da OBS senza il login di Umbrel.
+      # L'app ha una propria autenticazione per /admin e per tutte le API amministrative.
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    image: ghcr.io/michaelpiu/pokemon-twitch-catch:0.1.0
+    restart: on-failure
+    init: true
+    user: "1000:1000"
+    stop_grace_period: 15s
+    environment:
+      DATA_DIR: /data
+      # Password del primo accesso (mostrata da Umbrel nelle credenziali dell'app).
+      ADMIN_INITIAL_PASSWORD: ${APP_PASSWORD}
+      TZ: Europe/Rome
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

@@ -1,0 +1,33 @@
+manifestVersion: 1
+id: piu-live-catch
+category: social
+name: Live Catch
+version: "0.1.0"
+tagline: Gioco di cattura per Twitch con i punti canale
+description: >-
+  Live Catch è un gioco interattivo per la tua diretta Twitch.
+  Quando vai in LIVE compare a intervalli casuali una creatura nell'overlay di OBS
+  e gli spettatori la catturano riscattando le ricompense dei punti canale.
+  Ogni spettatore costruisce il proprio Pokédex, consultabile in chat con !pokedex.
+
+
+  Il motore di gioco si attiva da solo quando inizia la diretta e si ferma quando termina;
+  dashboard, database, statistiche e backup restano sempre disponibili nella rete locale.
+
+
+  Progetto amatoriale non ufficiale: Pokémon e i relativi marchi appartengono ai rispettivi
+  titolari (Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company). Nessuna affiliazione.
+releaseNotes: ""
+developer: MichaelPiu
+website: https://github.com/MichaelPiu/pokemon-twitch-catch
+dependencies: []
+repo: https://github.com/MichaelPiu/pokemon-twitch-catch
+support: https://github.com/MichaelPiu/pokemon-twitch-catch/issues
+port: 8788
+gallery: []
+path: "/admin"
+defaultUsername: "admin"
+deterministicPassword: true
+icon: https://raw.githubusercontent.com/MichaelPiu/pokemon-twitch-catch/main/public/favicon.svg
+submitter: MichaelPiu
+submission: https://github.com/MichaelPiu/pokemon-twitch-catch

@@ -1,0 +1,24 @@
+# Installazione manuale (metodo B) via SSH su Umbrel OS o su qualsiasi host Docker.
+# Per l'installazione dall'App Store di Umbrel usa invece la cartella piu-live-catch/.
+services:
+  livecatch:
+    build: .
+    image: ghcr.io/michaelpiu/pokemon-twitch-catch:local
+    container_name: livecatch
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    stop_grace_period: 15s
+    ports:
+      - "${HOST_PORT:-8788}:8080"
+    environment:
+      DATA_DIR: /data
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
+      TZ: ${TZ:-Europe/Rome}
+    volumes:
+      - ./data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
