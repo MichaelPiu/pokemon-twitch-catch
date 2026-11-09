@@ -2,7 +2,7 @@ manifestVersion: 1
 id: piu-live-catch
 category: social
 name: Live Catch
-version: "0.2.0"
+version: "0.2.1"
 tagline: Gioco di cattura per Twitch con i punti canale
 description: >-
   Live Catch è un gioco interattivo per la tua diretta Twitch.
@@ -17,7 +17,7 @@ description: >-
 
   Progetto amatoriale non ufficiale: Pokémon e i relativi marchi appartengono ai rispettivi
   titolari (Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company). Nessuna affiliazione.
-releaseNotes: "Nuova dashboard: tema viola, indicatori, grafico in tempo reale, attività recente, pagina Impostazioni."
+releaseNotes: "Correzioni dal collaudo: messaggio di login errato, stato Twitch aggiornato in tempo reale, notifiche overlay, Genera shiny, grafici statistiche, ordinamento backup."
 developer: MichaelPiu
 website: https://github.com/MichaelPiu/pokemon-twitch-catch
 dependencies: []
