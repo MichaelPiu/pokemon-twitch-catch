@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeApp, cleanup, seedPokemon, linkReward, seqRng } from './helpers.js';
 import { captureProbability } from '../src/capture/capture.js';
 import { GAME_DEFAULTS } from '../src/configuration/defaults.js';
+import { sessionTimeline, activityFeed, totals } from '../src/stats/stats.js';
 
 const user = (n = 1) => ({ twitchId: String(2000 + n), login: `user${n}`, displayName: `User${n}` });
 
@@ -160,5 +161,18 @@ describe('Sistema di cattura', () => {
     assert.equal(d.caught, true);
     assert.equal(app.db.get('SELECT COUNT(*) AS n FROM user_pokemon WHERE is_demo = 0').n, 0);
     assert.equal(app.db.get("SELECT COUNT(*) AS n FROM capture_attempts WHERE is_demo = 0 AND outcome != 'rejected'").n, 0);
+  });
+  test('grafico in tempo reale e attività recente della dashboard', () => {
+    spawnCommon();
+    rng.push(0.99, 0.0);
+    app.engine.attempt({ redemptionId: 't1', rewardId: reward.rewardId, user: user(1) });
+    app.engine.attempt({ redemptionId: 't2', rewardId: reward.rewardId, user: user(2) });
+    const tl = sessionTimeline(app.db, app.engine.session.id, { minutes: 30 });
+    const last = tl.points.at(-1);
+    assert.deepEqual([last.attempts, last.captures, last.participants], [2, 1, 2]);
+    const feed = activityFeed(app.db);
+    assert.ok(feed.some((a) => a.kind === 'capture' && a.text === 'User2 ha catturato Testmon A!'));
+    assert.ok(feed.some((a) => a.kind === 'spawn'));
+    assert.equal(totals(app.db, { sessionId: app.engine.session.id }).captures, 1);
   });
 });

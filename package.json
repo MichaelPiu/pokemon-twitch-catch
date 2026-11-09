@@ -1,6 +1,6 @@
 {
   "name": "pokemon-twitch-catch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Live Catch: gioco di cattura per Twitch con punti canale, attivo solo durante le dirette. App self-hosted per Umbrel OS.",
   "type": "module",
   "private": true,

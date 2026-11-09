@@ -216,7 +216,7 @@ I token vengono rinnovati automaticamente e validati ogni ora (come richiesto da
 
 ## Creazione delle Channel Points Rewards
 
-Sezione **Twitch → 4 · Ricompense punti canale**. Due modi:
+Sezione **Gestione Twitch → 4 · Ricompense punti canale**. Due modi:
 
 - **Crea nuova ricompensa** (consigliato): scegli la Poké Ball e il costo → la ricompensa viene creata sul tuo canale. Essendo creata dall'app, l'app può **rimborsare automaticamente** i punti quando non c'è nessun Pokémon (o la diretta è finita) e segnare come *completate* le riscossioni valide; puoi anche cambiare costo e attivarla/disattivarla dalla dashboard.
 - **Collega ricompensa esistente**: per ricompense create a mano su Twitch. Usa **Ricompense esistenti sul canale** per vederle e collegarle con un clic, oppure incolla l'ID (formato `xxxxxxxx-xxxx-…`). Twitch non permette all'app di rimborsarle o modificarle.
@@ -244,14 +244,16 @@ Quando non sei in diretta l'overlay è vuoto. Per provarlo usa la **Modalità DE
 
 Indirizzo unico: `http://IP-DEL-SERVER:8788/admin`. Sezioni:
 
-- **Panoramica**: stato LIVE/OFFLINE, connessione Twitch, motore, durata diretta, Pokémon in campo, catture, tentativi, successo, partecipanti, ultime catture, eventi ed errori.
+Interfaccia con tema scuro viola, menu laterale (riducibile a sole icone), barra superiore con stato della connessione Twitch e menu utente.
+
+- **Panoramica**: 6 indicatori (Stato Twitch, Motore di gioco, Partecipanti con nuovi allenatori di oggi, Catture con % di successo, Tentativi, Shiny), Pokémon attualmente in gioco con timer, tipi, rarità e probabilità base, grafico in tempo reale di tentativi/catture/partecipanti (ultimi 30 min, ultima ora o intera diretta), ultime catture, riepilogo della diretta corrente, attività recente, errori.
 - **Statistiche**: diretta attuale, giornaliere/settimanali/mensili/complessive con grafici e classifiche.
-- **Storico dirette**: ogni sessione con dettaglio (spawn, classifica, ball, rifiuti).
-- **Spettatori & Pokédex**: ricerca, Pokédex, doppioni, shiny, storico, aggiunta/rimozione manuale, reset, esclusione dal gioco.
-- **Gestione spawn**: intervalli, durata, probabilità, pesi rarità, probabilità di cattura, shiny, eventi speciali, generazione manuale, storico.
-- **Pokémon**: importazione, ricerca, rarità, difficoltà, peso di apparizione, abilitazione, shiny, statistiche.
-- **Poké Ball**: crea, modifica moltiplicatori, cattura garantita, abilita/disabilita.
-- **Comandi chat**, **Overlay OBS**, **Twitch**, **Modalità DEMO**, **Backup & Sistema** (backup, log, versione, stato componenti, spazio, pagine pubbliche, password).
+- **Pokédex e Utenti**: ricerca, Pokédex, doppioni, shiny, storico, aggiunta/rimozione manuale, reset, esclusione dal gioco.
+- **Gestione Spawn**: intervalli, durata, probabilità, pesi rarità, probabilità di cattura, shiny, eventi speciali, generazione manuale, storico.
+- **Gestione Pokémon**: importazione, ricerca, rarità, difficoltà, peso di apparizione, abilitazione, shiny, statistiche.
+- **Poké Ball e Ricompense**: crea, modifica moltiplicatori, cattura garantita, abilita/disabilita, collegamento ai punti canale.
+- **Gestione Twitch**, **Comandi Chat**, **Overlay**, **Storico Dirette**, **Backup e Sistema** (backup, log, versione, stato componenti, spazio).
+- **Impostazioni**: cambio password, pagine pubbliche, Modalità DEMO.
 
 Pagine pubbliche (disattivabili da *Backup & Sistema*): `/` introduzione, `/pokedex/USERNAME`, `/leaderboard`. Endpoint di stato: `/health`.
 

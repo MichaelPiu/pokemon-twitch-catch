@@ -1,3 +1,4 @@
+import { imageUrl } from '../spawn/spawn.js';
 // Statistiche: tutte le query escludono i dati DEMO e contano solo eventi
 // avvenuti all'interno di sessioni LIVE.
 const PERIODS = {
@@ -29,13 +30,14 @@ export function periodStats(db, period = 'day', { days } = {}) {
 }
 
 export function totals(db, { sessionId = null } = {}) {
-  const w = sessionId ? 'AND session_id = ?' : '';
+  // Con una sessione specifica il filtro DEMO è implicito nella sessione stessa.
+  const w = sessionId ? 'session_id = ?' : 'is_demo = 0';
   const args = sessionId ? [sessionId] : [];
   const a = db.get(
     `SELECT COUNT(*) AS attempts, COALESCE(SUM(outcome = 'caught'), 0) AS captures, COALESCE(SUM(outcome = 'failed'), 0) AS failures,
             COUNT(DISTINCT user_id) AS participants
-     FROM capture_attempts WHERE is_demo = 0 AND outcome != 'rejected' ${w}`, ...args);
-  const s = db.get(`SELECT COUNT(*) AS spawns, COALESCE(SUM(is_shiny), 0) AS shiny FROM spawn_history WHERE is_demo = 0 ${w}`, ...args);
+     FROM capture_attempts WHERE ${w} AND outcome != 'rejected'`, ...args);
+  const s = db.get(`SELECT COUNT(*) AS spawns, COALESCE(SUM(is_shiny), 0) AS shiny FROM spawn_history WHERE ${w}`, ...args);
   const extra = sessionId ? {} : {
     sessions: db.get('SELECT COUNT(*) AS n FROM stream_sessions WHERE is_demo = 0').n,
     users: db.get('SELECT COUNT(*) AS n FROM twitch_users WHERE is_demo = 0').n,
@@ -79,9 +81,69 @@ export function topLists(db, { sessionId = null, limit = 10 } = {}) {
 
 export function recentCaptures(db, { limit = 10, isDemo = false } = {}) {
   return db.all(
-    `SELECT up.id, up.caught_at, up.is_shiny, up.ball_name, u.display_name AS user, COALESCE(p.name_it, p.name) AS name, p.dex_number AS dex, p.rarity
+    `SELECT up.id, up.caught_at, up.is_shiny, up.ball_name, u.display_name AS user, COALESCE(p.name_it, p.name) AS name, p.dex_number AS dex, p.rarity,
+            p.image_file, p.shiny_image_file, p.image_url, p.shiny_image_url, b.color AS ball_color
      FROM user_pokemon up JOIN twitch_users u ON u.id = up.user_id JOIN pokemon p ON p.id = up.pokemon_id
-     WHERE up.is_demo = ? AND up.source = 'capture' ORDER BY up.caught_at DESC, up.id DESC LIMIT ?`, isDemo ? 1 : 0, limit);
+     LEFT JOIN ball_types b ON b.id = up.ball_type_id
+     WHERE up.is_demo = ? AND up.source = 'capture' ORDER BY up.caught_at DESC, up.id DESC LIMIT ?`, isDemo ? 1 : 0, limit,
+  ).map((r) => ({ ...r, image: imageUrl(r, !!r.is_shiny) }));
+}
+
+// Serie cumulative minuto per minuto della sessione (tentativi, catture, partecipanti).
+export function sessionTimeline(db, sessionId, { minutes = 30, now = Date.now() } = {}) {
+  const session = db.get('SELECT * FROM stream_sessions WHERE id = ?', sessionId);
+  if (!session) return { points: [] };
+  const end = session.ended_at ? Date.parse(session.ended_at) : now;
+  const startSession = Date.parse(session.started_at);
+  const start = minutes > 0 ? Math.max(startSession, end - minutes * 60000) : startSession;
+  const rows = db.all(
+    "SELECT user_id, outcome, created_at FROM capture_attempts WHERE session_id = ? AND outcome != 'rejected' ORDER BY created_at", sessionId);
+  const span = Math.max(60000, end - start);
+  const step = Math.max(60000, Math.ceil(span / 60 / 60000) * 60000); // al massimo ~60 punti
+  const points = [];
+  let i = 0, attempts = 0, captures = 0;
+  const users = new Set();
+  for (let t = start; ; t += step) {
+    const tt = Math.min(t, end);
+    while (i < rows.length && Date.parse(rows[i].created_at) <= tt) {
+      attempts++;
+      if (rows[i].outcome === 'caught') captures++;
+      users.add(rows[i].user_id);
+      i++;
+    }
+    points.push({ t: new Date(tt).toISOString(), attempts, captures, participants: users.size });
+    if (tt >= end) break;
+  }
+  return { sessionId, start: new Date(start).toISOString(), end: new Date(end).toISOString(), points };
+}
+
+// Feed "Attività recente": spawn, catture, shiny, comandi chat, transizioni LIVE/OFFLINE.
+export function activityFeed(db, { limit = 12, isDemo = false } = {}) {
+  const d = isDemo ? 1 : 0;
+  const items = [];
+  for (const r of db.all(
+    `SELECT s.started_at AS at, s.is_shiny, COALESCE(p.name_it, p.name) AS name FROM spawn_history s JOIN pokemon p ON p.id = s.pokemon_id
+     WHERE s.is_demo = ? ORDER BY s.id DESC LIMIT ?`, d, limit)) {
+    items.push({ at: r.at, kind: r.is_shiny ? 'shiny' : 'spawn', text: r.is_shiny ? `È apparso un Pokémon Shiny! (${r.name})` : `${r.name} è apparso!` });
+  }
+  for (const r of db.all(
+    `SELECT up.caught_at AS at, u.display_name AS user, COALESCE(p.name_it, p.name) AS name FROM user_pokemon up
+     JOIN twitch_users u ON u.id = up.user_id JOIN pokemon p ON p.id = up.pokemon_id
+     WHERE up.is_demo = ? AND up.source = 'capture' ORDER BY up.id DESC LIMIT ?`, d, limit)) {
+    items.push({ at: r.at, kind: 'capture', text: `${r.user} ha catturato ${r.name}!` });
+  }
+  if (!isDemo) {
+    for (const r of db.all("SELECT received_at AS at, detail, payload FROM twitch_events WHERE event_type = 'channel.chat.message' AND detail LIKE 'comando %' ORDER BY id DESC LIMIT ?", limit)) {
+      let user = '';
+      try { user = JSON.parse(r.payload || '{}').chatter_user_name || ''; } catch { /* ignora */ }
+      items.push({ at: r.at, kind: 'command', text: `Comando !${r.detail.replace('comando ', '')}${user ? ` da ${user}` : ''}` });
+    }
+    for (const r of db.all("SELECT created_at AS at, from_state, to_state FROM state_transitions WHERE to_state IN ('LIVE','OFFLINE','PAUSED') ORDER BY id DESC LIMIT ?", limit)) {
+      const text = { LIVE: 'Motore di gioco attivato (LIVE)', OFFLINE: 'Motore di gioco fermato (OFFLINE)', PAUSED: 'Gioco in pausa (connessione Twitch persa)' }[r.to_state];
+      items.push({ at: r.at, kind: r.to_state.toLowerCase(), text });
+    }
+  }
+  return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
 }
 
 export function sessionDetail(db, id) {

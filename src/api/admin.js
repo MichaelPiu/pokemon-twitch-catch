@@ -9,7 +9,8 @@ import { activeSpawn, publicSpawn, imageUrl } from '../spawn/spawn.js';
 import { summary, collection, captures, leaderboard } from '../pokedex/pokedex.js';
 import { upsertUser } from '../pokedex/users.js';
 import { listCommands } from '../commands/commands.js';
-import { periodStats, totals, topLists, recentCaptures, sessionDetail } from '../stats/stats.js';
+import { periodStats, totals, topLists, recentCaptures, sessionDetail, sessionTimeline, activityFeed } from '../stats/stats.js';
+import { captureProbability } from '../capture/capture.js';
 import { randomToken } from '../security/crypto.js';
 
 const id = (x, name = 'ID') => v.num(x, { min: 1, int: true, name });
@@ -21,17 +22,37 @@ export function registerAdminRoutes(app) {
   // --- Panoramica --------------------------------------------------------------
   r.get('/api/admin/overview', () => {
     const st = app.liveStatus();
-    const sessionId = st.session && !st.session.is_demo ? st.session.id : null;
+    // Sessione mostrata: la diretta reale o, se attiva, la sessione DEMO (marcata come tale).
+    const sess = st.session || null;
+    const isDemo = !!sess?.is_demo;
+    const cfg = app.engine.cfg();
+    const sp = st.engine.activeSpawn;
+    let baseChance = null;
+    if (sp) {
+      const row = db().get('SELECT catch_modifier FROM pokemon WHERE id = ?', sp.pokemonId);
+      baseChance = captureProbability({ settings: cfg, rarity: sp.rarity, catchModifier: row?.catch_modifier ?? 1, ball: { multiplier: 1, guaranteed: 0 }, isShiny: sp.shiny });
+    }
     return {
       ...st,
-      current: sessionId ? totals(db(), { sessionId }) : null,
+      session: sess,
+      isDemo,
+      current: sess ? totals(db(), { sessionId: sess.id }) : null,
       allTime: totals(db()),
-      recentCaptures: recentCaptures(db(), { limit: 10, isDemo: app.engine.mode === 'demo' }),
+      newTrainersToday: db().get("SELECT COUNT(*) AS n FROM twitch_users WHERE is_demo = ? AND date(first_seen_at, 'localtime') = date('now', 'localtime')", isDemo ? 1 : 0).n,
+      spawnInfo: sp ? { baseChance, mode: sp.mode } : null,
+      recentCaptures: recentCaptures(db(), { limit: 5, isDemo }),
+      activity: activityFeed(db(), { limit: 6, isDemo }),
       recentEvents: db().all('SELECT event_type, received_at, status, detail FROM twitch_events ORDER BY id DESC LIMIT 15'),
       errors: app.logger.recent({ level: 'warn', limit: 15 }).reverse(),
-      transitions: db().all('SELECT * FROM state_transitions ORDER BY id DESC LIMIT 10'),
       pokemonCount: db().get('SELECT COUNT(*) AS n, COALESCE(SUM(enabled), 0) AS enabled FROM pokemon'),
     };
+  });
+
+  r.get('/api/admin/overview/timeline', (ctx) => {
+    const sess = app.engine.session || app.engine.sessions.current(false);
+    const minutes = v.num(ctx.query.get('minutes') ?? 30, { min: 0, max: 1440, int: true, name: 'Minuti' });
+    if (!sess) return { points: [] };
+    return sessionTimeline(db(), sess.id, { minutes });
   });
 
   // --- Statistiche -------------------------------------------------------------

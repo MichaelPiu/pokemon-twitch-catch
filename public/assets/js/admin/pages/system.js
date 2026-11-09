@@ -1,10 +1,9 @@
 import { h, mount, get, post, put, del, api, fmt } from '../../lib.js';
 import { card, table, act, confirmDialog, stat, field } from '../ui.js';
-import { showChangePassword } from '../main.js';
 
 export async function system({ el }) {
   const load = async () => {
-    const [b, sys, pages] = await Promise.all([get('/api/admin/backups'), get('/api/admin/system'), get('/api/admin/public-pages')]);
+    const [b, sys] = await Promise.all([get('/api/admin/backups'), get('/api/admin/system')]);
     const bs = b.settings;
     const logBox = h('div', { class: 'log-box' });
     let level = 'info';
@@ -68,12 +67,6 @@ export async function system({ el }) {
           h('span', { class: 'spacer' }), jsonInput,
           h('button', { class: 'btn', onclick: () => importJson('merge') }, 'Importa (unisci)'),
           h('button', { class: 'btn danger', onclick: () => importJson('replace') }, 'Importa (sostituisci collezioni)'))),
-      card('Pagine pubbliche', h('div', { class: 'form' },
-        field('Pagina introduttiva (/)', pages, 'landing', { type: 'checkbox' }),
-        field('Pokédex pubblici (/pokedex/utente)', pages, 'pokedex', { type: 'checkbox' }),
-        field('Classifica (/leaderboard)', pages, 'leaderboard', { type: 'checkbox' })),
-        h('div', { class: 'row end', style: { marginTop: '10px' } }, h('button', { class: 'btn primary', onclick: () => act(() => put('/api/admin/public-pages', pages), 'Pagine aggiornate') }, 'Salva'))),
-      card('Account amministratore', h('button', { class: 'btn', onclick: () => showChangePassword(false) }, '🔑 Cambia password')),
       card('Log',
         h('div', { class: 'tabs' }, [['debug', 'Tutto'], ['info', 'Info'], ['warn', 'Avvisi'], ['error', 'Errori']].map(([k, l]) =>
           h('button', { class: `btn sm ${k === level ? 'on' : ''}`, onclick: (e) => { level = k; e.target.parentElement.querySelectorAll('button').forEach((x) => x.classList.remove('on')); e.target.classList.add('on'); loadLogs(); } }, l))),

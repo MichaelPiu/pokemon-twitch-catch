@@ -2,28 +2,29 @@
 import { h, mount, get, post, setCsrf, connectWs, fmt } from '../lib.js';
 import { toast } from './ui.js';
 import { pages } from './pages/index.js';
+import { icon } from '../icons.js';
 
 const root = document.getElementById('root');
 export const store = { me: null, status: null, listeners: new Set(), ws: null };
 
 export function onLive(fn) { store.listeners.add(fn); return () => store.listeners.delete(fn); }
 
+// [chiave, icona, etichetta, sottotitolo]
 const NAV = [
-  ['overview', '🏠', 'Panoramica'],
-  ['stats', '📊', 'Statistiche'],
-  ['sessions', '🎬', 'Storico dirette'],
-  ['users', '👥', 'Spettatori & Pokédex'],
-  null,
-  ['spawn', '✨', 'Gestione spawn'],
-  ['pokemon', '📚', 'Pokémon'],
-  ['balls', '🎯', 'Poké Ball'],
-  ['commands', '💬', 'Comandi chat'],
-  ['overlay', '🖼️', 'Overlay OBS'],
-  null,
-  ['twitch', '📡', 'Twitch'],
-  ['demo', '🧪', 'Modalità DEMO'],
-  ['system', '🛠️', 'Backup & Sistema'],
+  ['overview', 'home', 'Panoramica', 'Stato del gioco, diretta corrente e attività in tempo reale'],
+  ['stats', 'chart', 'Statistiche', 'Andamento delle dirette, classifiche e confronti'],
+  ['users', 'users', 'Pokédex e Utenti', 'Spettatori, collezioni, doppioni e storico catture'],
+  ['spawn', 'target', 'Gestione Spawn', 'Intervalli, probabilità, eventi e Pokémon in campo'],
+  ['pokemon', 'layers', 'Gestione Pokémon', 'Elenco, rarità, difficoltà e importazione da PokéAPI'],
+  ['balls', 'gift', 'Poké Ball e Ricompense', 'Moltiplicatori e collegamento ai punti canale'],
+  ['twitch', 'twitch', 'Gestione Twitch', 'Account, connessione, ricompense ed eventi'],
+  ['commands', 'chat', 'Comandi Chat', 'Risposte, cooldown e anti-spam dei comandi'],
+  ['overlay', 'monitor', 'Overlay', 'Aspetto e anteprima dell\'overlay per OBS'],
+  ['sessions', 'calendar', 'Storico Dirette', 'Tutte le sessioni LIVE con il loro dettaglio'],
+  ['system', 'database', 'Backup e Sistema', 'Backup, ripristino, log e stato del servizio'],
+  ['settings', 'settings', 'Impostazioni', 'Account, pagine pubbliche e modalità DEMO'],
 ];
+const HIDDEN = { demo: ['flask', 'Modalità DEMO', 'Prova il gioco senza Twitch, separato dalle statistiche reali'] };
 
 window.addEventListener('api-error', (e) => {
   if (e.detail.status === 401) showLogin();
@@ -43,7 +44,8 @@ async function boot() {
 }
 
 function brand() {
-  return h('div', { class: 'brand' }, h('img', { src: '/favicon.svg', alt: '' }), h('div', {}, 'Live Catch', h('small', {}, 'Dashboard amministrativa')));
+  return h('div', { class: 'brand' }, icon('logo', { size: 44, cls: 'logo' }),
+    h('div', { class: 'txt' }, h('div', { class: 'title' }, 'Pokémon Live Catch'), h('div', { class: 'sub' }, icon('twitch', { size: 16 }), 'Twitch Integration')));
 }
 
 function showLogin() {
@@ -103,58 +105,81 @@ export function showChangePassword(forced) {
   mount(root, h('div', { class: 'login-wrap' }, h('div', { class: 'card login' }, brand(), h('h2', {}, 'Cambio password'), form)));
 }
 
-let mainEl, navEl, sideStatus, sidebar, cleanup = null;
+let mainEl, navEl, sideFoot, sidebar, layout, topTitle, topSub, twPill, cleanup = null;
 
 function showApp() {
   navEl = h('nav', { class: 'nav' });
-  for (const item of NAV) {
-    if (!item) { navEl.appendChild(h('div', { class: 'sep' })); continue; }
-    const [key, ico, label] = item;
-    navEl.appendChild(h('a', { href: `#/${key}`, 'data-key': key, onclick: () => sidebar.classList.remove('open') }, h('span', { class: 'ico' }, ico), label));
+  for (const [key, ico, label] of NAV) {
+    navEl.appendChild(h('a', { href: `#/${key}`, 'data-key': key, title: label, onclick: () => sidebar.classList.remove('open') }, icon(ico, { size: 22 }), h('span', { class: 'lbl' }, label)));
   }
-  sideStatus = h('div', { class: 'side-status' }, '…');
-  sidebar = h('aside', { class: 'sidebar' }, brand(), navEl, sideStatus,
-    h('div', { class: 'row', style: { marginTop: '10px' } },
-      h('a', { class: 'btn sm ghost', href: '/overlay', target: '_blank' }, 'Overlay ↗'),
-      h('button', { class: 'btn sm ghost', onclick: async () => { await post('/api/auth/logout'); location.hash = ''; showLogin(); } }, 'Esci')));
+  sideFoot = h('div', { class: 'side-foot' });
+  sidebar = h('aside', { class: 'sidebar' }, brand(), navEl, sideFoot);
+  topTitle = h('h1');
+  topSub = h('div', { class: 'subtitle' });
+  twPill = h('span', { class: 'tw-pill', style: { '--c': 'var(--muted)' } }, h('span', { class: 'dot' }), '…');
+  const menu = h('div', { class: 'dropdown hidden' },
+    h('a', { href: '#/settings' }, icon('key', { size: 18 }), 'Cambia password'),
+    h('a', { href: '/overlay', target: '_blank' }, icon('external', { size: 18 }), 'Apri overlay'),
+    h('a', { href: '/', target: '_blank' }, icon('external', { size: 18 }), 'Pagina pubblica'),
+    h('button', { onclick: async () => { await post('/api/auth/logout'); location.hash = ''; showLogin(); } }, icon('logout', { size: 18 }), 'Esci'));
+  const userMenu = h('div', { class: 'user-menu' },
+    h('button', { class: 'user-btn', onclick: (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); } },
+      h('span', { class: 'avatar' }, icon('user', { size: 22 })), h('span', { class: 'uname' }, store.me?.username === 'admin' ? 'Admin' : store.me?.username || 'Admin'), icon('chevronDown', { size: 18 })),
+    menu);
+  document.addEventListener('click', () => menu.classList.add('hidden'));
   mainEl = h('main', { class: 'main' });
-  mount(root, h('div', { class: 'layout' }, sidebar, mainEl));
+  const topbar = h('header', { class: 'topbar' },
+    h('button', { class: 'btn menu-btn', onclick: () => sidebar.classList.toggle('open') }, icon('menu', { size: 20 })),
+    h('div', {}, topTitle, topSub),
+    h('div', { class: 'right' }, twPill, h('span', { class: 'vsep' }), userMenu));
+  layout = h('div', { class: `layout ${localStorage.getItem('lc_collapsed') === '1' ? 'collapsed' : ''}` }, sidebar, h('div', { class: 'content' }, topbar, mainEl));
+  mount(root, layout);
+  renderSideStatus();
   store.ws?.close();
   store.ws = connectWs('/ws/admin', (type, data) => {
     if (type === 'snapshot' || type === 'status') { store.status = data; renderSideStatus(); }
     if (type === 'log' && data.level === 'error') toast(data.message, 'err');
     for (const l of store.listeners) { try { l(type, data); } catch (e) { console.error(e); } }
-  });
+  }, { onState: (ok) => { store.wsOk = ok; renderSideStatus(); } });
   window.onhashchange = route;
   route();
 }
 
 function renderSideStatus() {
+  if (!sideFoot) return;
+  const ok = store.wsOk !== false;
+  mount(sideFoot,
+    h('div', { class: 'txt' },
+      h('div', { class: 'svc' }, h('span', { class: 'dot', style: { background: ok ? 'var(--ok)' : 'var(--err)' } }), ok ? 'Servizio attivo' : 'Servizio non raggiungibile'),
+      h('div', { class: 'ver' }, `v${store.me?.version || ''}`)),
+    h('button', { class: 'collapse-btn', title: 'Riduci/espandi menu', onclick: () => {
+      layout.classList.toggle('collapsed');
+      localStorage.setItem('lc_collapsed', layout.classList.contains('collapsed') ? '1' : '0');
+      renderSideStatus();
+    } }, icon(layout?.classList.contains('collapsed') ? 'chevronRight' : 'chevronLeft', { size: 18 })));
   const s = store.status;
-  if (!s || !sideStatus) return;
-  const st = s.lifecycle.state;
-  const label = { OFFLINE: 'Offline', CONNECTING: 'Connessione…', LIVE: 'IN DIRETTA', PAUSED: 'In pausa', ERROR: 'Errore' }[st] || st;
-  mount(sideStatus,
-    h('div', { class: 'row' }, h('span', { class: `pill state-pill state-${st}` }, h('span', { class: `dot ${st === 'LIVE' ? 'live' : ''}` }), label)),
-    h('div', { class: 'muted', style: { marginTop: '6px' } },
-      s.engine.running ? (s.engine.mode === 'demo' ? '🧪 Motore in modalità DEMO' : '🟢 Motore di gioco attivo') : '⏸ Motore di gioco fermo'),
-    s.session && !s.session.is_demo ? h('div', { class: 'muted' }, `Diretta: ${fmt.dur((Date.now() - Date.parse(s.session.started_at)) / 1000)}`) : null);
+  if (!s || !twPill) return;
+  const tw = s.twitch;
+  const [c, label] = !tw.configured ? ['var(--muted)', 'Twitch da configurare']
+    : tw.eventsubConnected ? ['var(--ok)', 'Twitch connesso'] : ['var(--err)', 'Twitch non connesso'];
+  twPill.style.setProperty('--c', c);
+  mount(twPill, h('span', { class: 'dot' }), label);
 }
 
 function route() {
   const hash = location.hash.replace(/^#\/?/, '') || 'overview';
   const [key, ...rest] = hash.split('/');
   const page = pages[key] || pages.overview;
-  for (const a of navEl.querySelectorAll('a')) a.classList.toggle('active', a.dataset.key === key);
+  for (const a of navEl.querySelectorAll('a')) a.classList.toggle('active', a.dataset.key === (pages[key] ? key : 'overview'));
   if (cleanup) { try { cleanup(); } catch { /* ignora */ } cleanup = null; }
-  const title = NAV.find((n) => n && n[0] === key)?.[2] || 'Panoramica';
+  const nav = NAV.find((n) => n[0] === key);
+  const title = nav?.[2] || HIDDEN[key]?.[1] || 'Panoramica';
+  const sub = nav?.[3] || HIDDEN[key]?.[2] || NAV[0][3];
+  topTitle.textContent = title;
+  topSub.textContent = sub;
   const content = h('div');
-  mount(mainEl,
-    h('div', { class: 'topbar' },
-      h('button', { class: 'btn menu-btn', onclick: () => sidebar.classList.toggle('open') }, '☰'),
-      h('h1', {}, title)),
-    content);
-  document.title = `${title} · Live Catch`;
+  mount(mainEl, content);
+  document.title = `${title} · Pokémon Live Catch`;
   Promise.resolve(page({ el: content, params: rest, store })).then((c) => { cleanup = typeof c === 'function' ? c : null; })
     .catch((e) => mount(content, h('div', { class: 'notice err' }, e.message)));
 }

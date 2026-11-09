@@ -24,7 +24,7 @@ Tempo stimato: 20–30 minuti, da fare una sola volta.
 2. Premi **Importa da PokéAPI** e aspetta che la barra arrivi al 100% (qualche minuto).
 
 ## Passo 4 — Collega Twitch
-1. Nel menu clicca **Twitch** e segui i riquadri numerati:
+1. Nel menu clicca **Gestione Twitch** e segui i riquadri numerati:
 2. **Riquadro 1**: apri il link *dev.twitch.tv/console/apps*, clicca *Registra la tua applicazione*:
    - Nome: quello che vuoi (es. `LiveCatch` + il tuo nome);
    - URL di reindirizzamento: `http://localhost` → *Aggiungi*;
@@ -38,12 +38,12 @@ Tempo stimato: 20–30 minuti, da fare una sola volta.
 5. In alto premi **Testa connessione**: devono essere quasi tutte ✅ (“EventSub” è ✅ se il server è connesso).
 
 ## Passo 5 — Aggiungi l'overlay in OBS
-1. Nella dashboard apri **Overlay OBS** e premi **Copia** accanto all'indirizzo.
+1. Nella dashboard apri **Overlay** e premi **Copia** accanto all'indirizzo.
    - Se usi Windows, sostituisci `umbrel.local` con l'indirizzo IP del server (lo trovi nelle impostazioni di Umbrel, es. `192.168.1.50`).
 2. In OBS: **Sorgenti → + → Browser** → incolla l'URL, larghezza `1920`, altezza `1080` → OK.
 
 ## Passo 6 — Prova tutto senza andare in diretta
-1. Nel menu clicca **Modalità DEMO** → **Avvia DEMO** → **Genera Pokémon**: in OBS appare il Pokémon.
+1. Nel menu clicca **Impostazioni → Modalità DEMO** → **Avvia DEMO** → **Genera Pokémon**: in OBS appare il Pokémon.
 2. Premi **Lancia** per simulare uno spettatore che lancia una Poké Ball.
 3. Quando hai finito: **Ferma DEMO** e **Cancella dati DEMO**. Le prove non finiscono nelle statistiche reali.
 
@@ -53,6 +53,6 @@ Da ora in poi **non devi fare nulla**: quando vai in diretta il gioco parte da s
 Comandi da comunicare agli spettatori: `!pokedex`, `!pokemon`, `!dex @nome`, `!ultimocatturato`, `!classifica`, `!help`.
 
 ## Se qualcosa non va
-- In **Panoramica** guarda il riquadro *Stato Twitch*: se è **ERRORE**, vai in **Twitch** e ricollega l'account.
+- In **Panoramica** guarda il riquadro *Stato Twitch*: se è **ERRORE**, vai in **Gestione Twitch** e ricollega l'account.
 - **IN PAUSA** significa che il server ha perso momentaneamente Internet: il gioco riprende da solo.
 - Hai dimenticato la password? Vedi la sezione *Risoluzione problemi* nel README.

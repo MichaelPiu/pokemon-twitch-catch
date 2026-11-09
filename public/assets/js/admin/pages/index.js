@@ -10,5 +10,6 @@ import { overlay } from './overlay.js';
 import { twitch } from './twitch.js';
 import { demo } from './demo.js';
 import { system } from './system.js';
+import { settings } from './settings.js';
 
-export const pages = { overview, stats, sessions, users, spawn, pokemon, balls, commands, overlay, twitch, demo, system };
+export const pages = { overview, stats, sessions, users, spawn, pokemon, balls, commands, overlay, twitch, demo, system, settings };
