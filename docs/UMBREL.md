@@ -149,7 +149,7 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 ## Collaudo consigliato sul tuo Umbrel
 
 1. Installazione: l'app si apre, `http://umbrel.local:8788/health` risponde `"status":"ok"`.
-2. *Backup e Sistema*: versione `1.0.0-rc.2`, schema DB v2, crea un backup manuale.
+2. *Backup e Sistema*: versione installata (`1.0.0-rc.3` dopo il rilascio con Overlay Themes), **schema DB v3**, crea un backup manuale. Aggiornando da una rc.2 deve esserci anche il backup `…-pre-migration.sqlite.gz`.
 3. Riavvia l'app da Umbrel: i dati restano, il login con la tua password funziona.
 4. *Impostazioni → Sicurezza*: "Il tuo IP visto dal server" deve essere l'IP del tuo PC, **non** un 10.x/172.x. Se vedi l'indirizzo del gateway, i proxy fidati non sono riconosciuti: segnalalo.
 5. DEMO con OBS (overlay da `http://IP-UMBREL:8788/overlay`).
@@ -159,6 +159,17 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
    - un riscatto genera il lancio;
    - `!pokedex` risponde;
    - a fine diretta le ricompense tornano in pausa.
+8. Overlay Designer con OBS: cambia tema a gioco fermo, la sorgente si aggiorna senza ricaricarla; una simulazione su OBS mostra il badge "SIMULAZIONE"; in diretta il simulatore resta nell'anteprima privata.
+9. Rollback (facoltativo, su un'installazione di prova): segui README → *Tornare a una versione precedente*. Con la rc.2 i dati devono restare tutti e l'overlay tornare all'aspetto precedente.
+
+## Tornare a una versione precedente
+
+La procedura completa è nel README (*Aggiornamento → Tornare a una versione precedente*). In breve, per Umbrel:
+- i dati sono in `~/umbrel/app-data/piu-live-catch/data/`, i backup in `…/data/backups/` (anche quello `pre-migration` creato all'aggiornamento);
+- l'App Store installa solo la versione pubblicata nello store: per tornare alla rc.2 va ripubblicata nello store con il suo digest;
+- la rc.2 si avvia sul database v3 senza perdere dati (overlay con l'aspetto precedente all'aggiornamento); per lo stato esatto di prima dell'aggiornamento ripristina il backup `pre-migration`.
+
+Non ancora provato su un Umbrel reale.
 
 ## Pubblicazione di una versione
 

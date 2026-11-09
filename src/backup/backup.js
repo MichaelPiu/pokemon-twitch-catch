@@ -5,8 +5,41 @@ import { join, basename } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { nowIso } from '../database/index.js';
+import { LATEST_SCHEMA, schemaTooNewMessage } from '../database/migrations.js';
+import { RARITIES } from '../configuration/defaults.js';
 
 const NAME_RE = /^livecatch-\d{8}-\d{6}-[a-z-]+(-\d+)?\.sqlite\.gz$/;
+
+// Data locale (fuso orario del processo, es. TZ del container) in formato AAAA-MM-GG.
+export function localDay(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Impostazioni di un Pokémon in un'esportazione JSON: stessi limiti della
+// dashboard. Campi assenti = valore attuale invariato. Valori non validi =
+// importazione rifiutata per intero (nessuna modifica).
+function cleanPokemonSetting(s, i) {
+  const bad = (what) => { throw new Error(`Impostazioni Pokémon n. ${i + 1} non valide: ${what}`); };
+  if (!s || typeof s !== 'object' || Array.isArray(s)) bad('formato');
+  if (typeof s.slug !== 'string' || !/^[a-z0-9-]{1,80}$/.test(s.slug)) bad('slug');
+  const out = { slug: s.slug };
+  if (s.rarity !== undefined) { if (!RARITIES.includes(s.rarity)) bad('rarità'); out.rarity = s.rarity; }
+  const num = (k, min, max) => {
+    if (s[k] === undefined) return;
+    const n = typeof s[k] === 'number' ? s[k] : Number.NaN;
+    if (!Number.isFinite(n) || n < min || n > max) bad(k);
+    out[k] = n;
+  };
+  num('catch_modifier', 0.01, 100);
+  num('spawn_weight', 0, 10000);
+  for (const k of ['shiny_enabled', 'enabled']) {
+    if (s[k] === undefined) continue;
+    if (![0, 1, true, false].includes(s[k])) bad(k);
+    out[k] = s[k] ? 1 : 0;
+  }
+  return out;
+}
 
 function stamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -118,6 +151,9 @@ export class BackupService {
         if (d.prepare('PRAGMA integrity_check').get().integrity_check !== 'ok') throw new Error('Database danneggiato');
         const t = d.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('twitch_users','user_pokemon','pokemon','schema_migrations')").all();
         if (t.length < 4) throw new Error('Il database non appartiene a questa applicazione');
+        // Backup creato da una versione più recente: rifiutato prima di toccare il database attuale.
+        const v = d.prepare('SELECT MAX(id) AS v FROM schema_migrations').get()?.v ?? 0;
+        if (v > LATEST_SCHEMA) throw Object.assign(new Error(schemaTooNewMessage(v, 'Il backup')), { code: 'SCHEMA_TOO_NEW' });
       } finally { d.close(); }
     } finally {
       unlinkSync(tmp);
@@ -158,6 +194,8 @@ export class BackupService {
 
   importJson(data, { mode = 'merge' } = {}) {
     if (data?.format !== 'livecatch-export') throw new Error('File di esportazione non riconosciuto');
+    if (data.pokemonSettings !== undefined && !Array.isArray(data.pokemonSettings)) throw new Error('Impostazioni Pokémon non valide: formato');
+    const pokemonSettings = (data.pokemonSettings || []).map(cleanPokemonSetting);
     return this.db.tx(() => {
       if (mode === 'replace') this.db.run('DELETE FROM user_pokemon WHERE is_demo = 0');
       let users = 0, mons = 0, skipped = 0;
@@ -180,9 +218,10 @@ export class BackupService {
           u.id, p.id, c.is_shiny ? 1 : 0, c.ball_name || null, c.caught_at || nowIso());
         mons++;
       }
-      for (const s of data.pokemonSettings || []) {
-        this.db.run('UPDATE pokemon SET rarity = ?, catch_modifier = ?, spawn_weight = ?, shiny_enabled = ?, enabled = ? WHERE slug = ?',
-          s.rarity, s.catch_modifier, s.spawn_weight, s.shiny_enabled, s.enabled, s.slug);
+      for (const s of pokemonSettings) {
+        this.db.run(`UPDATE pokemon SET rarity = COALESCE(?, rarity), catch_modifier = COALESCE(?, catch_modifier),
+            spawn_weight = COALESCE(?, spawn_weight), shiny_enabled = COALESCE(?, shiny_enabled), enabled = COALESCE(?, enabled) WHERE slug = ?`,
+          s.rarity ?? null, s.catch_modifier ?? null, s.spawn_weight ?? null, s.shiny_enabled ?? null, s.enabled ?? null, s.slug);
       }
       return { users, pokemon: mons, skipped };
     });
@@ -197,11 +236,14 @@ export class BackupService {
   checkAuto(now = new Date()) {
     const cfg = this.settings.get('backup');
     if (!cfg.autoEnabled) return null;
-    const today = now.toISOString().slice(0, 10);
+    // Ora e giorno nello stesso fuso (quello locale del processo): con l'ora
+    // impostata a mezzanotte o all'una il giorno UTC poteva essere ancora quello
+    // precedente, e il backup del giorno veniva saltato o fatto due volte.
+    const today = localDay(now);
     if (now.getHours() < cfg.hour) return null;
     if (this.lastAutoDate === today) return null;
     const last = this.db.get("SELECT created_at FROM backup_history WHERE kind = 'auto' ORDER BY id DESC LIMIT 1");
-    if (last && last.created_at.slice(0, 10) === today) { this.lastAutoDate = today; return null; }
+    if (last && localDay(new Date(last.created_at)) === today) { this.lastAutoDate = today; return null; }
     this.lastAutoDate = today;
     try { return this.create('auto'); } catch (e) { this.log.error('Backup automatico fallito', { message: e.message }); return null; }
   }

@@ -2,7 +2,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { migrations } from './migrations.js';
+import { migrations, LATEST_SCHEMA, schemaTooNewMessage } from './migrations.js';
 
 export function nowIso() {
   return new Date().toISOString();
@@ -80,7 +80,17 @@ export class Database {
     }
   }
 
+  // Rifiuta un database creato da una versione più recente dell'app (schema
+  // sconosciuto), prima di qualsiasi scrittura.
+  assertSupportedSchema() {
+    const has = this.get("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'");
+    if (!has) return;
+    const v = this.schemaVersion();
+    if (v > LATEST_SCHEMA) throw Object.assign(new Error(schemaTooNewMessage(v)), { code: 'SCHEMA_TOO_NEW', found: v, supported: LATEST_SCHEMA });
+  }
+
   migrate() {
+    this.assertSupportedSchema();
     this.db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
       id INTEGER PRIMARY KEY, name TEXT NOT NULL,
       applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))`);

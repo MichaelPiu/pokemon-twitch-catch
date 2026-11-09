@@ -152,17 +152,30 @@ export class ThemeStore {
   }
 
   // Preset integrato → valori del preset; tema personalizzato → valori con cui è stato creato.
-  reset(id) {
-    const t = this.require(id);
-    const row = this.db.get('SELECT original_config FROM overlay_themes WHERE id = ?', t.id);
-    return this.write(t.id, { config: sanitizeConfig(safeParse(row.original_config), defaultConfig(t.base)).config });
+  // Con `rev` (inviato sempre dal Designer) l'operazione viene rifiutata (409)
+  // se il tema è stato salvato altrove dopo che è stato aperto.
+  checkRev(t, rev) {
+    if (rev === undefined) return;
+    if (!Number.isInteger(rev) || rev < 0) throw new ThemeError(400, 'Revisione non valida');
+    if (rev !== t.rev) throw this.conflict(t.id);
   }
 
-  remove(id) {
+  reset(id, { rev } = {}) {
+    const t = this.require(id);
+    this.checkRev(t, rev);
+    const row = this.db.get('SELECT original_config FROM overlay_themes WHERE id = ?', t.id);
+    return this.write(t.id, { config: sanitizeConfig(safeParse(row.original_config), defaultConfig(t.base)).config, rev });
+  }
+
+  remove(id, { rev } = {}) {
     const t = this.require(id);
     if (t.builtin) throw new ThemeError(400, 'I preset integrati non si possono eliminare (puoi ripristinarli)');
+    this.checkRev(t, rev);
     const wasActive = this.activeId() === t.id;
-    this.db.run('DELETE FROM overlay_themes WHERE id = ?', t.id);
+    const del = rev === undefined
+      ? this.db.run('DELETE FROM overlay_themes WHERE id = ?', t.id)
+      : this.db.run('DELETE FROM overlay_themes WHERE id = ? AND rev = ?', t.id, rev);
+    if (Number(del.changes) === 0) throw this.conflict(t.id);
     if (wasActive) this.settings.set('activeThemeId', this.bySlug('classic').id);
     return { removed: t.id, activeChanged: wasActive };
   }

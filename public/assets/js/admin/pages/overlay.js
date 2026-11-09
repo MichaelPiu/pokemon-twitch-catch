@@ -313,13 +313,30 @@ export async function overlay({ el }) {
 
   async function reset() {
     if (!await confirmDialog(saved.builtin ? `Riportare "${saved.name}" ai valori originali del preset?` : `Riportare "${saved.name}" ai valori con cui è stato creato?`, { okLabel: 'Ripristina' })) return;
-    const r = await act(() => post(`/api/admin/overlay/themes/${saved.id}/reset`), 'Valori originali ripristinati');
+    const r = await guarded(() => post(`/api/admin/overlay/themes/${saved.id}/reset`, { rev: saved.rev }), 'Valori originali ripristinati');
     if (r) await reload(saved.id);
+  }
+
+  // Ripristino ed eliminazione con la revisione aperta: se il tema è stato
+  // salvato altrove nel frattempo il server risponde 409 e si ricarica la
+  // versione attuale invece di agire su modifiche che non si sono viste.
+  async function guarded(fn, okMsg) {
+    try {
+      const r = await fn();
+      toast(okMsg, 'ok');
+      return r;
+    } catch (e) {
+      if (e.status === 409 && e.details?.current) {
+        await reload(saved.id);
+        toast(`"${saved.name}" è stato modificato altrove: è stata caricata la versione più recente, controlla e riprova`, 'err');
+      } else toast(e.message, 'err');
+      return undefined;
+    }
   }
 
   async function remove() {
     if (!await confirmDialog(`Eliminare il tema "${saved.name}"? L'operazione non si può annullare.`, { danger: true, okLabel: 'Elimina' })) return;
-    const r = await act(() => del(`/api/admin/overlay/themes/${saved.id}`), 'Tema eliminato');
+    const r = await guarded(() => del(`/api/admin/overlay/themes/${saved.id}?rev=${saved.rev}`), 'Tema eliminato');
     if (r) await reload(r.activeId);
   }
 

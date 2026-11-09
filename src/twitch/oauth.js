@@ -1,6 +1,7 @@
 // OAuth Twitch tramite Device Code Grant Flow: funziona in rete locale senza
 // redirect HTTPS pubblici. L'utente apre twitch.tv/activate e inserisce un codice.
 import { BROADCASTER_SCOPES, BOT_SCOPES } from '../configuration/defaults.js';
+import { fetchWithRetry, TwitchTransientError } from './http.js';
 
 export class TwitchOAuth {
   constructor({ config, credentials, log, fetchImpl = fetch }) {
@@ -8,17 +9,22 @@ export class TwitchOAuth {
     this.creds = credentials;
     this.log = log;
     this.fetch = fetchImpl;
+    this.http = { ...(config.twitch.http || {}), log };
     this.pending = new Map(); // role -> stato del device flow (solo in memoria)
   }
 
   scopesFor(role) { return role === 'bot' ? BOT_SCOPES : BROADCASTER_SCOPES; }
 
-  async form(path, params) {
-    const res = await this.fetch(`${this.base}${path}`, {
+  // POST verso id.twitch.tv. `idempotent`: la richiesta può essere ripetuta
+  // senza effetti collaterali anche dopo un 5xx o un timeout (es. rinnovo token:
+  // nel peggiore dei casi Twitch rifiuta il vecchio refresh token con 400, che
+  // viene comunque gestito). Il Device Code Flow non viene ritentato.
+  async form(path, params, { idempotent = false, retries } = {}) {
+    const res = await fetchWithRetry(this.fetch, `${this.base}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams(params).toString(),
-    });
+    }, { ...this.http, idempotent, ...(retries != null ? { retries } : {}), label: `OAuth ${path}` });
     let body = {};
     try { body = await res.json(); } catch { /* corpo vuoto */ }
     return { status: res.status, body };
@@ -62,9 +68,23 @@ export class TwitchOAuth {
     };
     const secret = this.creds.clientSecret;
     if (secret) params.client_secret = secret;
-    const { status, body } = await this.form('/token', params);
+    let status, body;
+    try {
+      ({ status, body } = await this.form('/token', params));
+    } catch (e) {
+      if (!e.transient) throw e;
+      return { status: 'pending' }; // Twitch momentaneamente non raggiungibile: il polling continua
+    }
     if (status === 200 && body.access_token) {
-      const info = await this.validate(body.access_token);
+      let info;
+      try {
+        info = await this.validate(body.access_token);
+      } catch (e) {
+        if (!e.transient) throw e;
+        st.status = 'error';
+        st.error = 'Twitch temporaneamente non disponibile: riprova il collegamento tra qualche minuto';
+        return { status: 'error', error: st.error };
+      }
       if (!info) {
         st.status = 'error';
         st.error = 'Token ricevuto ma non valido';
@@ -90,10 +110,15 @@ export class TwitchOAuth {
     return { status: 'error', error: st.error };
   }
 
+  // Ritorna le informazioni del token, null se Twitch lo dichiara non valido
+  // (401), oppure lancia TwitchTransientError se la risposta non permette di
+  // deciderlo (rete, timeout, 429, 5xx, altri codici inattesi).
   async validate(accessToken) {
-    const res = await this.fetch(`${this.base}/validate`, { headers: { Authorization: `OAuth ${accessToken}` } });
-    if (res.status !== 200) return null;
-    return res.json();
+    const res = await fetchWithRetry(this.fetch, `${this.base}/validate`, { headers: { Authorization: `OAuth ${accessToken}` } }, { ...this.http, label: 'OAuth /validate' });
+    if (res.status === 200) return res.json();
+    await res.text().catch(() => {});
+    if (res.status === 401) return null;
+    throw new TwitchTransientError(`Verifica del token non conclusa (HTTP ${res.status})`, { status: res.status });
   }
 
   async refresh(role) {
@@ -102,10 +127,14 @@ export class TwitchOAuth {
     const params = { grant_type: 'refresh_token', refresh_token: t.refreshToken, client_id: this.creds.clientId };
     const secret = this.creds.clientSecret;
     if (secret) params.client_secret = secret;
-    const { status, body } = await this.form('/token', params);
+    // Errori di rete, timeout, 429 e 5xx arrivano come TwitchTransientError
+    // (authInvalid: false): il token NON viene considerato revocato.
+    const { status, body } = await this.form('/token', params, { idempotent: true });
     if (status !== 200 || !body.access_token) {
       const err = new Error(`Rinnovo token fallito (${role}): ${body.message || status}`);
+      // 400/401: Twitch rifiuta il refresh token (revocato, scaduto o app scollegata).
       err.authInvalid = status === 400 || status === 401;
+      err.status = status;
       throw err;
     }
     this.creds.setToken(role, {

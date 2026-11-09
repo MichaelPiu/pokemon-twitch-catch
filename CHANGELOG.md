@@ -76,6 +76,47 @@
   - Funzioni del browser usate dall'overlay: `color-mix()`, che richiede Chromium 111+, `backdrop-filter` e `@property`.
   - Le versioni di Chromium incluse in OBS non sono state verificate.
 
+### Correzioni dopo l'audit pre-release
+
+#### Twitch: errori temporanei (A1, B5)
+- HTTP 429 e 5xx, errori di rete e timeout verso Twitch sono **errori temporanei, non revoche**: il token non viene segnato come non valido, lo stato resta LIVE, nessuna pausa delle ricompense e nessun rimborso. Prima un 503 o un problema di rete durante il controllo orario del token portava il gioco in ERROR in piena diretta, chiedendo di ricollegare l'account.
+- La procedura di revoca parte solo quando Twitch rifiuta davvero il token: `/oauth2/validate` risponde 401 e il rinnovo risponde 400 o 401.
+- Il controllo orario del token usa il rinnovo condiviso con le richieste Helix (un solo rinnovo alla volta).
+- Nuovo modulo `src/twitch/http.js` per Helix e id.twitch.tv:
+  - timeout per ogni chiamata (10 s, `TWITCH_HTTP_TIMEOUT_MS`);
+  - fino a 2 ritentativi (`TWITCH_HTTP_RETRIES`) con attesa crescente, rispettando `Retry-After` e `Ratelimit-Reset`; un'attesa richiesta oltre 15 s non viene ignorata, si riprova al ciclo successivo;
+  - le richieste POST vengono ritentate solo dopo un 429, per non inviare due volte un messaggio in chat o creare due ricompense.
+- Dashboard: avviso "Problema temporaneo di Twitch … il gioco continua", che sparisce da solo alla prima risposta corretta.
+- Rimborsi: un 429 o Twitch irraggiungibile non consumano i 6 tentativi.
+- Collegamento account: un errore temporaneo durante il polling del Device Code Flow non interrompe la procedura.
+
+#### Sicurezza e robustezza (M1, B1, B4)
+- **M1**: un cookie con codifica non valida (anche di un'altra app sullo stesso host, es. `umbrel.local`) viene ignorato. Prima mandava in errore 500 tutte le API e lasciava appeso il WebSocket della dashboard. Un parametro di percorso malformato riceve 400. Qualsiasi errore durante l'apertura di un WebSocket chiude la connessione con 400.
+- **B1**: `limit` della classifica pubblica e degli elenchi della dashboard sempre tra 1 e il massimo previsto (prima un valore negativo eliminava il limite).
+- **B4**: limite delle connessioni WebSocket dell'overlay: 30 per indirizzo IP e 100 in totale (`WS_OVERLAY_MAX_PER_IP`, `WS_OVERLAY_MAX_CONNECTIONS`). Oltre il limite: risposta 503, l'overlay riprova da solo. La dashboard non è coinvolta.
+
+#### Database e backup (M2, B6, B7)
+- **M2**: un backup con uno schema più recente di quello supportato viene rifiutato, sia al ripristino sia al caricamento, **prima** di toccare il database (nessun backup di sicurezza, nessuna sostituzione). Lo stesso controllo all'avvio: con un database più recente l'app non parte e non lo modifica.
+- **B6**: il backup automatico usa ora e giorno nello stesso fuso orario (`TZ`); prima confrontava l'ora locale con la data UTC e con l'orario a mezzanotte o all'una poteva saltare un giorno.
+- **B7**: le impostazioni dei Pokémon in un'importazione JSON sono validate con gli stessi limiti della dashboard; un valore non valido annulla l'intera importazione senza modifiche. I campi assenti restano invariati.
+
+#### Gioco, temi e simulatore (B2, B3, B8)
+- **B2**: con *revoca della cattura sull'annullamento* attiva, un riscatto annullato da un moderatore toglie il Pokémon e anche il tentativo dalle statistiche (sessione, spawn, grafici, classifiche). Il tentativo appare come rifiutato con motivo "riscatto annullato". Eventi ripetuti non contano due volte.
+- **B3**: *Ripristina* ed *Elimina* nel Designer inviano la revisione del tema: se nel frattempo è stato salvato altrove il server risponde 409 e il Designer carica la versione più recente invece di agire alla cieca. Senza `rev` l'API resta compatibile.
+- **B8**: in ERROR o CONNECTING le simulazioni verso l'overlay pubblico sono bloccate se Twitch ha segnalato il canale in diretta (API `/streams` o evento `stream.online`, informazione valida 30 minuti). L'anteprima privata del Designer resta sempre disponibile.
+
+#### Documentazione (M3)
+- README: tabella delle versioni dello schema e procedura **Tornare a una versione precedente**: rollback semplice (nessuna perdita di dati) e rollback esatto con il backup `pre-migration`. Verificata in locale con il codice rc.2, non su Umbrel.
+- `docs/UMBREL.md`: collaudo aggiornato allo schema v3, passi per Designer/OBS e rollback.
+- Nuove variabili d'ambiente e nuove voci in *Risoluzione problemi*.
+
+#### Test delle correzioni
+- `test/twitch-resilience.test.js` (12 test): 503 su validate e rinnovo, 429 con `Retry-After` breve e lungo, timeout, rete assente, 5xx persistente di Helix, token davvero revocato, recupero, rinnovo deduplicato, Device Code Flow, unità di `fetchWithRetry`.
+- `test/hardening.test.js` (14 test): cookie malformati via HTTP e WebSocket, backup e database con schema più recente (database e file invariati), limite della classifica, statistiche dopo l'annullamento, revisione dei temi, limite delle connessioni overlay, backup automatico con fuso orario, validazione dell'importazione, simulatore in ERROR/CONNECTING, timeout di Helix.
+- `FakeTwitch.fault()` (helpers) simula 429/5xx, rete assente e richieste che non rispondono.
+- `test/rewards.test.js`: il guasto simulato del rimborso dura ora 3 risposte 500 invece di 1, perché il client ritenta da solo i 5xx. Le verifiche del test sono invariate.
+- Totale 156 (130 + 26).
+
 ### Test
 - `test/overlay-stability.test.js` (25 test):
   - simulazione in OFFLINE, DEMO, LIVE e PAUSED, con tentativi di aggirare il blocco via API;

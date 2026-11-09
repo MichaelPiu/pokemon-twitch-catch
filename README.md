@@ -179,6 +179,10 @@ Variabili d'ambiente:
 | `TRUSTED_PROXIES` | vuoto | Proxy autorizzati a inoltrare l'IP del browser (`X-Forwarded-For`). Vuoto = accesso diretto, header ignorati. Su Umbrel il pacchetto imposta `docker-gateway,piu-live-catch_app_proxy_1`. Voci ammesse: IP, rete CIDR, `loopback`, `docker-gateway`, nome host |
 | `ADMIN_HOSTS` | vuoto | Hostname dedicati alla dashboard (es. `livecatch.lan`). Ha la precedenza sull'impostazione della dashboard |
 | `ALLOWED_ORIGINS` | vuoto | Origini aggiuntive ammesse per la dashboard (es. `https://livecatch.example.lan` dietro un reverse proxy HTTPS) |
+| `WS_OVERLAY_MAX_CONNECTIONS` | `100` | Connessioni WebSocket dell'overlay (OBS, anteprime) accettate in totale. Oltre il limite la connessione riceve 503 e l'overlay riprova da solo |
+| `WS_OVERLAY_MAX_PER_IP` | `30` | Connessioni dell'overlay accettate da uno stesso indirizzo IP (basta per una sorgente Browser per ogni scena di OBS). Dietro il proxy di Umbrel l'IP è quello del browser solo se `TRUSTED_PROXIES` è corretto |
+| `TWITCH_HTTP_TIMEOUT_MS` | `10000` | Tempo massimo di una chiamata alle API di Twitch |
+| `TWITCH_HTTP_RETRIES` | `2` | Ritentativi automatici sugli errori temporanei di Twitch (rete, timeout, HTTP 429 e 5xx) |
 
 La vecchia variabile `TRUST_PROXY` non esiste più (con la 0.x gli header inoltrati erano considerati sempre affidabili): se è impostata viene ignorata con un avviso nei log.
 
@@ -379,7 +383,7 @@ Sezione **Overlay Designer** della dashboard. Contiene **9 temi integrati**, ogn
 - **Anteprima privata o overlay pubblico**:
   - Normalmente le simulazioni compaiono **solo nell'anteprima privata** del Designer, che funziona sempre, anche durante una diretta.
   - Con *Invia anche all'overlay pubblico (OBS)* gli eventi arrivano anche alle sorgenti OBS collegate, con il badge **SIMULAZIONE**.
-  - L'invio all'overlay pubblico è consentito solo a gioco fermo (OFFLINE, senza DEMO). In LIVE, in PAUSED e in DEMO l'opzione è disattivata. Il server rifiuta la richiesta (HTTP 409) anche se l'API viene chiamata direttamente.
+  - L'invio all'overlay pubblico è consentito solo a gioco fermo (OFFLINE, senza DEMO). In LIVE, in PAUSED e in DEMO l'opzione è disattivata, e così in ERROR o CONNECTING quando Twitch ha segnalato il canale in diretta. Il server rifiuta la richiesta (HTTP 409) anche se l'API viene chiamata direttamente.
   - Ogni invio all'overlay pubblico è registrato nel log (*Backup e Sistema → Log*).
 - **Pulizia automatica**:
   - Quando parte la diretta o la DEMO, gli elementi simulati ancora visibili vengono tolti subito dall'overlay, insieme a eventuali sequenze in corso.
@@ -427,8 +431,9 @@ Prefisso, testi, alias, cooldown globale e per utente, anti-spam e limite di mes
 ## Ripristino
 
 1. *Backup & Sistema → Backup*: scegli il file e premi **Ripristina** (oppure prima **Carica** un file `.sqlite.gz` scaricato in precedenza).
-2. L'app crea automaticamente un backup *pre-restore* dello stato attuale, verifica integrità e appartenenza del file, sostituisce il database e riparte.
+2. L'app verifica integrità, appartenenza e versione dello schema del file, crea automaticamente un backup *pre-restore* dello stato attuale, sostituisce il database e riparte.
 3. Il ripristino è bloccato durante una diretta.
+4. Un backup creato da una versione più recente dell'app viene rifiutato prima di qualsiasi modifica (anche al caricamento del file).
 
 Se ripristini su un'installazione nuova, i token Twitch salvati nel backup sono cifrati con la vecchia `secret.key`: ricopia anche quel file oppure ricollega gli account Twitch (2 minuti).
 
@@ -439,6 +444,40 @@ Se ripristini su un'installazione nuova, i token Twitch salvati nel backup sono 
 
 Il database viene migrato automaticamente all'avvio con migrazioni incrementali (`src/database/migrations.js`): non viene mai cancellato. **Prima di applicare una migrazione l'app crea da sola un backup `pre-migration`** in `/data/backups`, ripristinabile dalla dashboard.
 
+Versioni dello schema del database:
+
+| Versione dell'app | Schema |
+|---|---|
+| 1.0.0-rc.1, 1.0.0-rc.2 | v2 |
+| Overlay Themes (prossima rc) | v3: tabella `overlay_themes` |
+
+Un'app non apre mai un database (o un backup) con uno schema più recente di quello che conosce: l'avvio o il ripristino vengono rifiutati con un messaggio chiaro e **senza modificare nulla**. Fanno eccezione le versioni fino alla 1.0.0-rc.2, che non hanno questo controllo (vedi sotto).
+
+### Tornare a una versione precedente (rollback)
+
+Esempio: dalla versione con Overlay Themes (schema v3) alla 1.0.0-rc.2 (schema v2). Prima di tutto crea un backup manuale (*Backup & Sistema → Crea backup ora*) e scaricalo.
+
+Ci sono due modi. Il primo è consigliato.
+
+**1. Rollback semplice: solo la versione dell'app, nessuna perdita di dati.**
+La rc.2 si avvia anche sul database v3 e non lo modifica nella struttura:
+- spettatori, catture, sessioni, statistiche, ricompense e impostazioni restano tutti, anche quelli registrati dopo l'aggiornamento;
+- l'overlay torna all'aspetto che aveva **prima** dell'aggiornamento: la rc.2 non conosce i temi del Designer e usa le vecchie impostazioni dell'overlay;
+- i temi restano salvati nel database: tornando alla versione nuova, Designer e tema attivo ricompaiono come li avevi lasciati.
+
+**2. Rollback esatto: lo stato di prima dell'aggiornamento.**
+Dopo essere tornato alla rc.2 (come sopra), in *Backup & Sistema → Backup* ripristina il file `livecatch-…-pre-migration.sqlite.gz` creato al momento dell'aggiornamento. Il database torna allo schema v2 e a com'era quel giorno: **le catture e le modifiche fatte dopo l'aggiornamento non ci sono più nel database attivo**. Non vanno perse: il ripristino crea prima il backup `pre-restore` dello stato attuale, che puoi ripristinare a sua volta per tornare indietro.
+
+Come cambiare versione:
+- **Metodo B (SSH)**:
+  ```bash
+  cd ~/livecatch && git fetch --tags && git checkout v1.0.0-rc.2 && sudo docker compose up -d --build
+  ```
+  Per tornare all'ultima versione: `git checkout main && sh scripts/install-umbrel-ssh.sh`.
+- **Metodo A (App Store)**: l'App Store di Umbrel installa solo la versione pubblicata nello store. Per tornare alla rc.2 bisogna ripubblicare nello store il manifest e l'immagine della rc.2 (`scripts/publish-store.sh` con il digest della rc.2) e aggiornare l'app da Umbrel. *Questa procedura non è ancora stata provata su un Umbrel reale.*
+
+Verifica eseguita in locale (non su Umbrel): con il codice rc.2 e quello nuovo sulla stessa cartella dati, entrambi i modi conservano tutti i dati come descritto sopra.
+
 ## Risoluzione problemi
 
 | Problema | Soluzione |
@@ -446,6 +485,7 @@ Il database viene migrato automaticamente all'avvio con migrazioni incrementali 
 | Stato **ERROR – not_configured** | Completa i passi 1 e 2 della sezione Twitch. |
 | Stato **ERROR – auth_error** | Il token del canale è stato revocato o non si rinnova: *Twitch → Account del canale → Ricollega*. Finché non lo fai, metti in pausa a mano le ricompense indicate nell'avviso. Al ricollegamento l'app le mette in pausa e rimborsa i riscatti in coda. |
 | Avviso "Token del bot non più valido" | Il gioco continua e risponde l'account del canale. *Twitch → Account bot → Ricollega*. |
+| Avviso "Problema temporaneo di Twitch … il gioco continua" | Twitch non ha risposto (rete, timeout, HTTP 429 o 5xx). **Non** è una revoca: il gioco resta attivo, nessuna ricompensa viene messa in pausa e l'app riprova da sola; l'avviso sparisce alla prima risposta corretta. Se resta per molti minuti controlla la connessione Internet del server. |
 | Stato **PAUSED** | Connessione a Twitch persa: il gioco è sospeso in sicurezza e riprende da solo appena la diretta viene confermata. Controlla la connessione Internet del server. |
 | Vado in live ma il gioco non parte | *Twitch → Testa connessione*. Verifica che sia collegato l'account del canale che trasmette. Il controllo periodico (60 s) rileva la diretta anche se l'evento è andato perso. |
 | La sottoscrizione `redemption` risulta *failed* | Il canale non è Affiliate/Partner o manca lo scope: ricollega l'account. |
@@ -458,7 +498,10 @@ Il database viene migrato automaticamente all'avvio con migrazioni incrementali 
 | Nessun Pokémon appare | Importa i Pokémon; verifica che ci siano Pokémon abilitati e che *Spawn automatici attivi* sia acceso. |
 | Overlay vuoto in OBS | Usa l'IP del server; prova la Modalità DEMO; verifica che l'URL sia `/overlay`. |
 | Dopo l'aggiornamento l'overlay in OBS si comporta come prima | Proprietà della sorgente Browser → **Aggiorna la cache della pagina corrente**. |
-| Il simulatore non invia all'overlay pubblico | È consentito solo a gioco fermo: in LIVE, PAUSED o DEMO le simulazioni restano nell'anteprima privata. |
+| Il simulatore non invia all'overlay pubblico | È consentito solo a gioco fermo: in LIVE, PAUSED o DEMO, e in ERROR o CONNECTING quando Twitch segnala il canale in diretta, le simulazioni restano nell'anteprima privata. |
+| Ripristino rifiutato: "Il backup usa lo schema vN, creato da una versione più recente" | Il backup viene da una versione più nuova dell'app: aggiorna Live Catch prima di ripristinarlo. Il database attuale non è stato toccato. |
+| Il container non parte: "Il database usa lo schema vN … più recente" | Stai eseguendo una versione dell'app più vecchia del database (ritorno indietro senza ripristino). Reinstalla la versione più recente oppure segui [Tornare a una versione precedente](#tornare-a-una-versione-precedente-rollback). Il database non viene modificato. |
+| Overlay irraggiungibile, nel log "Connessione overlay rifiutata: limite raggiunto" | Troppe sorgenti/pagine overlay aperte (o un client che apre connessioni senza fine). Chiudi le anteprime inutilizzate oppure alza `WS_OVERLAY_MAX_PER_IP` / `WS_OVERLAY_MAX_CONNECTIONS`. |
 | Ho perso la password admin | Crea un file vuoto chiamato `reset-admin-password` nella cartella dati (Umbrel: `~/umbrel/app-data/piu-live-catch/data/`, metodo B: `~/livecatch/data/`) e riavvia l'app. La nuova password temporanea sarà nel file `initial-admin-password.txt` nella stessa cartella. I dati di gioco non vengono toccati. |
 | Log | *Backup & Sistema → Log*, oppure il file `/data/logs/app.log`. |
 
@@ -493,6 +536,11 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - recupero dei riscatti in sospeso dopo la riconnessione EventSub, senza duplicati;
   - eventi tardivi, ritentativi, ricompense non elaborabili;
   - limiti delle ricompense collegate.
+- **Errori temporanei di Twitch** (`test/twitch-resilience.test.js`):
+  - 429 con `Retry-After`, 5xx, timeout e rete assente durante una diretta: nessuna revoca, nessuna pausa, nessun rimborso;
+  - token davvero revocato (rinnovo rifiutato con 400): procedura di revoca;
+  - recupero automatico e rinnovo del token deduplicato.
+- **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
 - **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):
   - preset, validazione, importazione ed esportazione, persistenza e migrazione;
   - simulatore isolato e bloccato sull'overlay pubblico in LIVE, PAUSED e DEMO;

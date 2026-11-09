@@ -69,7 +69,10 @@ export class RedemptionReconciler {
       const msg = final ? 'riscossione non più in coda su Twitch (già gestita?)'
         : auth ? 'account Twitch del canale non autorizzato: verrà ritentato dopo il ricollegamento'
           : (e.message || 'errore sconosciuto').slice(0, 300);
-      const tries = final ? MAX_TRIES : auth ? (attempt.status_tries || 0) : (attempt.status_tries || 0) + 1;
+      // Limite di richieste (429) o Twitch non raggiungibile (rete, timeout): la
+      // richiesta non è stata elaborata, quindi non consuma i tentativi.
+      const unreached = !final && !auth && e.transient && (e.status === 429 || !e.status);
+      const tries = final ? MAX_TRIES : (auth || unreached) ? (attempt.status_tries || 0) : (attempt.status_tries || 0) + 1;
       this.db.run('UPDATE capture_attempts SET status_error = ?, status_tries = ? WHERE id = ?', msg, tries, attempt.id);
       this.log.warn('Aggiornamento riscossione su Twitch non riuscito', { status, http: e.status, message: msg });
       return { ok: false, error: msg };

@@ -291,3 +291,13 @@ CREATE TABLE overlay_themes (
 `,
   },
 ];
+
+// Ultima versione di schema conosciuta da questo codice. Un database (o un
+// backup) con una versione più alta è stato creato da una versione più recente
+// dell'app e non viene aperto né ripristinato: potrebbe essere danneggiato.
+export const LATEST_SCHEMA = Math.max(...migrations.map((m) => m.id));
+
+export function schemaTooNewMessage(found, what = 'Il database') {
+  return `${what} usa lo schema v${found}, creato da una versione più recente di Live Catch: questa versione supporta fino allo schema v${LATEST_SCHEMA}. `
+    + 'Aggiorna l\'app oppure usa un backup compatibile.';
+}

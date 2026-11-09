@@ -56,8 +56,18 @@ export function registerOverlayRoutes(app) {
     return out;
   }));
 
-  r.post('/api/admin/overlay/themes/:id/reset', wrap((ctx) => {
-    const theme = themes.reset(ctx.params.id);
+  // Revisione facoltativa per l'API, sempre inviata dal Designer: se indicata,
+  // ripristino ed eliminazione vengono rifiutati (409) dopo modifiche altrove.
+  const revOf = (raw) => {
+    if (raw === undefined || raw === null || raw === '') return undefined;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0) throw new HttpError(400, 'Revisione non valida');
+    return n;
+  };
+
+  r.post('/api/admin/overlay/themes/:id/reset', wrap(async (ctx) => {
+    const b = await readJson(ctx.req, 4096);
+    const theme = themes.reset(ctx.params.id, { rev: revOf(b?.rev) });
     pushIfActive(theme.id);
     return { theme };
   }));
@@ -71,7 +81,7 @@ export function registerOverlayRoutes(app) {
   }));
 
   r.delete('/api/admin/overlay/themes/:id', wrap((ctx) => {
-    const out = themes.remove(ctx.params.id);
+    const out = themes.remove(ctx.params.id, { rev: revOf(ctx.query.get('rev')) });
     if (out.activeChanged) app.hub.overlay('settings', themes.effective());
     return { ...out, activeId: themes.activeId() };
   }));

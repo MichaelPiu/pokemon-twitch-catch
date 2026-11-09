@@ -9,7 +9,8 @@
 //    mostrati solo nell'anteprima (nessun invio a OBS);
 //  - destinazione "obs" (overlay pubblico): gli eventi vengono inviati agli
 //    overlay collegati, marcati sim: true, e SOLO a gioco fermo: mai con una
-//    diretta LIVE o PAUSED, mai con il motore attivo o sospeso (diretta o DEMO);
+//    diretta LIVE o PAUSED, mai con il motore attivo o sospeso (diretta o DEMO),
+//    mai in ERROR/CONNECTING se Twitch ha segnalato il canale in diretta;
 //  - quando il gioco si attiva, gli elementi simulati ancora visibili vengono
 //    rimossi dagli overlay (evento "sim_clear": tocca solo ciò che è simulato).
 import { STATES } from '../game_engine/stateMachine.js';
@@ -40,8 +41,8 @@ export class SimulationError extends Error {
 }
 
 export class OverlaySimulator {
-  constructor({ db, hub, engine, sm = null, log, timers = true, rng = Math.random }) {
-    Object.assign(this, { db, hub, engine, sm, log, timers, rng });
+  constructor({ db, hub, engine, sm = null, log, timers = true, rng = Math.random, channelLive = () => false }) {
+    Object.assign(this, { db, hub, engine, sm, log, timers, rng, channelLive });
     this.obsSpawn = null;
     this.pending = [];
     this.obsDirty = false; // ci sono elementi simulati sugli overlay pubblici
@@ -183,6 +184,10 @@ export class OverlaySimulator {
     if (state === STATES.LIVE || state === STATES.PAUSED) return `diretta ${state}`;
     if (this.engine?.mode === 'live') return 'diretta in corso';
     if (this.engine?.mode === 'demo') return 'modalità DEMO attiva';
+    // In ERROR o CONNECTING il gioco è fermo, ma il canale può essere davvero in
+    // onda (es. EventSub non ancora collegato): l'ultima informazione nota da
+    // Twitch dice che la diretta è attiva, quindi niente simulazioni in onda.
+    if ((state === STATES.ERROR || state === STATES.CONNECTING) && this.channelLive()) return 'il canale risulta in diretta su Twitch';
     return null;
   }
 
