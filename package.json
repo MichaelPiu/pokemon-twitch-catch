@@ -1,0 +1,20 @@
+{
+  "name": "pokemon-twitch-catch",
+  "version": "0.1.0",
+  "description": "Live Catch: gioco di cattura per Twitch con punti canale, attivo solo durante le dirette. App self-hosted per Umbrel OS.",
+  "type": "module",
+  "private": true,
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "DATA_DIR=./data-dev ADMIN_INITIAL_PASSWORD=admin12345 PORT=8080 node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 test/",
+    "check": "node --check src/server.js && npm test"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

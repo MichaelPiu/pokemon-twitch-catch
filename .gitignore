@@ -1,0 +1,27 @@
+# Dipendenze
+node_modules/
+
+# Dati locali (database, immagini, backup, log, chiavi): MAI nel repository
+/data/
+/data-*/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite.gz
+secret.key
+initial-admin-password.txt
+*.log
+
+# Segreti e configurazioni locali
+.env
+.env.*
+!.env.example
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+.claude/settings.local.json
+.claude/
