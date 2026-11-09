@@ -1,16 +1,19 @@
 # Live Catch su Umbrel OS — installazione, pubblicazione e verifiche
 
-## Stato delle verifiche (1.0.0-rc.1)
+## Stato delle verifiche (1.0.0-rc.3, preparata in locale, non ancora pubblicata)
 
 | Verifica | Stato | Dove |
 |---|---|---|
-| Test automatici (logica, API, sicurezza, Channel Points con Twitch simulato) | Verificata: 83/83 in locale e nella CI (Node 24) | `npm test`, job CI *Test automatici* |
-| Avvio reale del container amd64 e arm64: healthcheck, UID 1000, volume, persistenza dopo il riavvio, arresto pulito, password assenti dai log, volume non scrivibile | Verificata nella CI di GitHub, run del tag `v1.0.0-rc.1` (runner Ubuntu; arm64 in emulazione QEMU) | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
-| Linter ufficiale di Umbrel sul pacchetto | Verificato: nessun errore. Nel repository di sviluppo l'unico avviso è l'immagine senza digest, che è invece fissato nello store | job CI *Linter ufficiale Umbrel* |
-| Immagine multi-arch pubblicata | Verificata: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.1@sha256:9daaabff4e05c50f04268153c28046965db31ce04b39034e0851be2aa49637f1` | job CI *Pubblicazione* |
-| Store pubblico: clone anonimo, manifest e icona raggiungibili | Verificata (HTTP 200, `git clone` senza credenziali) | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
-| Immagine scaricabile senza autenticazione | **Bloccata**: il pacchetto GHCR è privato (decisione del proprietario). La richiesta anonima riceve HTTP 401 e l'Action dello store fallisce **solo** su questa verifica | passo finale del job *Pubblicazione*, Action dello store (da rilanciare dopo aver reso pubblico il pacchetto) |
-| Installazione da App Store su un vero Umbrel | **Non verificata** (serve il tuo server) | — |
+| Test automatici (logica, API, sicurezza, migrazioni, backup, Channel Points ed errori temporanei con Twitch simulato) | Verificata **in locale**: 156/156 su Node 24.22.2 e su Node 26.13.0. Nella CI di GitHub **non ancora eseguita** per la rc.3 | `npm test`, job CI *Test automatici* |
+| Rollback rc.3 → rc.2 e ritorno, backup tra versioni di Node | Verificata **in locale** con script (nessun dato perso), non su Umbrel | README → *Tornare a una versione precedente* |
+| Dashboard e Overlay Designer nel browser | Verificata con test automatizzati nel Chromium del browser integrato (non OBS) | — |
+| Avvio reale del container amd64 e arm64: healthcheck, UID 1000, volume, persistenza dopo il riavvio, arresto pulito, password assenti dai log, volume non scrivibile | **Non ancora verificata per la rc.3**. Ultima verifica: CI del tag `v1.0.0-rc.1` (runner Ubuntu; arm64 in emulazione QEMU) | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
+| Linter ufficiale di Umbrel sul pacchetto | **Non ancora eseguito per la rc.3**. Ultima verifica (rc.1): nessun errore; nel repository di sviluppo l'unico avviso è l'immagine senza digest, che è invece fissato nello store | job CI *Linter ufficiale Umbrel* |
+| Immagine multi-arch pubblicata | **Da generare**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3` non è ancora stata costruita né pubblicata; il digest sarà scritto da `scripts/publish-store.sh` dopo la CI del rilascio. Ultima pubblicazione verificata: `1.0.0-rc.1@sha256:9daaabff4e05c50f04268153c28046965db31ce04b39034e0851be2aa49637f1` | job CI *Pubblicazione* |
+| Repository dello store: clone anonimo, manifest e icona raggiungibili | Verificata solo per il contenuto pubblicato con la rc.1 (HTTP 200, `git clone` senza credenziali). Il contenuto della rc.3 **non è ancora pubblicato** nello store | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
+| Installazione della rc.3 dallo store | **Non verificata**: la rc.3 non è pubblicata e non è mai stata installata su Umbrel. Nessuna versione risulta installata con successo da questo store su un vero Umbrel | — |
+| Immagine scaricabile senza autenticazione | **Bloccata**: la richiesta anonima a GHCR riceve HTTP 401 (controllato il 9 novembre 2026). Finché il pacchetto non è pubblico Umbrel non può scaricarlo e l'Action dello store fallisce su questa verifica | passo finale del job *Pubblicazione*, Action dello store |
+| Aggiornamento rc.2 → rc.3 su un vero Umbrel (migrazione allo schema v3, backup `pre-migration`, temi) | **Non verificato** (serve il tuo server); provato solo in locale, vedi sopra | — |
 | Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi) | **Non verificata** (serve il tuo consenso e il tuo canale) | — |
 | Overlay dentro OBS | **Non verificata** | — |
 
@@ -32,7 +35,7 @@ Rischio residuo noto: un'app installata con `network_mode: host` sullo stesso Um
 
 ## Installazione (Metodo A, App Store)
 
-Prerequisito: immagine GHCR pubblica (vedi README → *Cosa devi autorizzare tu*).
+Prerequisito: immagine GHCR scaricabile senza autenticazione (vedi README → *Cosa devi autorizzare tu*). **Oggi non lo è** (HTTP 401 alla richiesta anonima, 9 novembre 2026): finché resta così l'installazione dall'App Store è bloccata, anche se il repository GitHub è pubblico.
 
 1. Umbrel → **App Store** → **⋯** → **Community App Stores** → `https://github.com/MichaelPiu/piu-umbrel-app-store` → **Add**.
 2. Store **Piu** → **Live Catch** → **Install**.
@@ -149,7 +152,7 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 ## Collaudo consigliato sul tuo Umbrel
 
 1. Installazione: l'app si apre, `http://umbrel.local:8788/health` risponde `"status":"ok"`.
-2. *Backup e Sistema*: versione installata (`1.0.0-rc.3` dopo il rilascio con Overlay Themes), **schema DB v3**, crea un backup manuale. Aggiornando da una rc.2 deve esserci anche il backup `…-pre-migration.sqlite.gz`.
+2. *Backup e Sistema*: versione installata `1.0.0-rc.3`, **schema DB v3**, crea un backup manuale. Aggiornando da una rc.2 deve esserci anche il backup `…-pre-migration.sqlite.gz`.
 3. Riavvia l'app da Umbrel: i dati restano, il login con la tua password funziona.
 4. *Impostazioni → Sicurezza*: "Il tuo IP visto dal server" deve essere l'IP del tuo PC, **non** un 10.x/172.x. Se vedi l'indirizzo del gateway, i proxy fidati non sono riconosciuti: segnalalo.
 5. DEMO con OBS (overlay da `http://IP-UMBREL:8788/overlay`).

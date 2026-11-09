@@ -124,6 +124,8 @@ Umbrel installa app di terze parti tramite i **Community App Store**: un reposit
 
 Prerequisito: l'immagine Docker su GitHub Container Registry deve essere **pubblica**, perché Umbrel la scarica senza credenziali (lo controlla l'Action dello store a ogni modifica).
 
+> **Stato attuale:** la richiesta anonima di pull dell'immagine riceve HTTP 401 (controllo del 9 novembre 2026). Finché l'immagine non è scaricabile senza autenticazione, l'installazione con il Metodo A è bloccata. Il repository GitHub pubblico non basta: la visibilità del pacchetto GHCR è un'impostazione separata.
+
 Installazione:
 1. Apri l'interfaccia di Umbrel (`http://umbrel.local`).
 2. Vai in **App Store**, apri il menu **⋯** in alto a destra e scegli **Community App Stores** (la voce può variare leggermente tra versioni di umbrelOS).
@@ -449,13 +451,13 @@ Versioni dello schema del database:
 | Versione dell'app | Schema |
 |---|---|
 | 1.0.0-rc.1, 1.0.0-rc.2 | v2 |
-| Overlay Themes (prossima rc) | v3: tabella `overlay_themes` |
+| 1.0.0-rc.3 (Overlay Themes) | v3: tabella `overlay_themes` |
 
 Un'app non apre mai un database (o un backup) con uno schema più recente di quello che conosce: l'avvio o il ripristino vengono rifiutati con un messaggio chiaro e **senza modificare nulla**. Fanno eccezione le versioni fino alla 1.0.0-rc.2, che non hanno questo controllo (vedi sotto).
 
 ### Tornare a una versione precedente (rollback)
 
-Esempio: dalla versione con Overlay Themes (schema v3) alla 1.0.0-rc.2 (schema v2). Prima di tutto crea un backup manuale (*Backup & Sistema → Crea backup ora*) e scaricalo.
+Esempio: dalla 1.0.0-rc.3 (schema v3) alla 1.0.0-rc.2 (schema v2). Prima di tutto crea un backup manuale (*Backup & Sistema → Crea backup ora*) e scaricalo.
 
 Ci sono due modi. Il primo è consigliato.
 
@@ -463,7 +465,7 @@ Ci sono due modi. Il primo è consigliato.
 La rc.2 si avvia anche sul database v3 e non lo modifica nella struttura:
 - spettatori, catture, sessioni, statistiche, ricompense e impostazioni restano tutti, anche quelli registrati dopo l'aggiornamento;
 - l'overlay torna all'aspetto che aveva **prima** dell'aggiornamento: la rc.2 non conosce i temi del Designer e usa le vecchie impostazioni dell'overlay;
-- i temi restano salvati nel database: tornando alla versione nuova, Designer e tema attivo ricompaiono come li avevi lasciati.
+- i temi restano salvati nel database: tornando alla rc.3, Designer e tema attivo ricompaiono come li avevi lasciati.
 
 **2. Rollback esatto: lo stato di prima dell'aggiornamento.**
 Dopo essere tornato alla rc.2 (come sopra), in *Backup & Sistema → Backup* ripristina il file `livecatch-…-pre-migration.sqlite.gz` creato al momento dell'aggiornamento. Il database torna allo schema v2 e a com'era quel giorno: **le catture e le modifiche fatte dopo l'aggiornamento non ci sono più nel database attivo**. Non vanno perse: il ripristino crea prima il backup `pre-restore` dello stato attuale, che puoi ripristinare a sua volta per tornare indietro.
@@ -476,7 +478,7 @@ Come cambiare versione:
   Per tornare all'ultima versione: `git checkout main && sh scripts/install-umbrel-ssh.sh`.
 - **Metodo A (App Store)**: l'App Store di Umbrel installa solo la versione pubblicata nello store. Per tornare alla rc.2 bisogna ripubblicare nello store il manifest e l'immagine della rc.2 (`scripts/publish-store.sh` con il digest della rc.2) e aggiornare l'app da Umbrel. *Questa procedura non è ancora stata provata su un Umbrel reale.*
 
-Verifica eseguita in locale (non su Umbrel): con il codice rc.2 e quello nuovo sulla stessa cartella dati, entrambi i modi conservano tutti i dati come descritto sopra.
+Verifica eseguita in locale (non su Umbrel): con il codice rc.2 e quello della rc.3 sulla stessa cartella dati, entrambi i modi conservano tutti i dati come descritto sopra.
 
 ## Risoluzione problemi
 
@@ -581,7 +583,10 @@ scripts/publish-store.sh ../piu-umbrel-app-store sha256:<digest>
 
 Alcuni passaggi richiedono i tuoi account o una tua decisione e non sono stati eseguiti dallo sviluppatore:
 
-1. **Immagine Docker pubblica**: il pacchetto GHCR `pokemon-twitch-catch` deve restare **pubblico** perché Umbrel lo scarica senza credenziali (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*). Codice e immagine sono pubblici per scelta del proprietario.
+1. **Immagine Docker scaricabile senza credenziali**: Umbrel scarica l'immagine GHCR `pokemon-twitch-catch` senza autenticazione, quindi il pacchetto deve essere **pubblico** (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*).
+   - Il **repository GitHub** di sviluppo è pubblico.
+   - La disponibilità pubblica dell'**immagine GHCR** invece **non è verificata**: al controllo del 9 novembre 2026 la richiesta anonima di pull riceve HTTP 401.
+   - Finché l'immagine non è scaricabile senza autenticazione, **l'installazione su Umbrel dall'App Store (Metodo A) è bloccata**.
 2. **Twitch**: creare l'applicazione su dev.twitch.tv e autorizzare l'account del canale (e l'eventuale bot) con il codice di attivazione.
 3. **Affiliate/Partner**: necessario per i punti canale.
 4. **Hostname dedicato** (consigliato): record DNS locale o file `hosts`, vedi [Sicurezza dell'accesso](#sicurezza-dellaccesso).

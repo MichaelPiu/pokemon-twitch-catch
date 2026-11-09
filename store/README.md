@@ -12,6 +12,8 @@ Questo repository contiene **solo** i file di installazione per Umbrel (nessun c
 3. Apri lo store **Piu**, scegli **Live Catch** e premi **Install**.
 4. Apri l'app (`http://umbrel.local:8788/admin`): utente `admin`, password mostrata da Umbrel nella scheda dell'app. Al primo accesso ti verrà chiesto di sceglierne una nuova (da quel momento la password mostrata da Umbrel non vale più).
 
-L'immagine Docker (`ghcr.io/michaelpiu/pokemon-twitch-catch`) è fissata per tag **e** digest ed è pubblicata per `linux/amd64` e `linux/arm64`. La GitHub Action di questo repository esegue il linter ufficiale di Umbrel e verifica che l'immagine sia scaricabile senza autenticazione.
+L'immagine Docker (`ghcr.io/michaelpiu/pokemon-twitch-catch`) è fissata per tag **e** digest. La pipeline di rilascio è predisposta per pubblicarla per `linux/amd64` e `linux/arm64`. La GitHub Action di questo repository esegue il linter ufficiale di Umbrel e controlla che l'immagine sia scaricabile senza autenticazione.
+
+> **Stato attuale:** che la pipeline sia predisposta per pubblicare l'immagine non significa che oggi sia scaricabile senza autenticazione. Al controllo del 9 novembre 2026 GHCR restituiva **HTTP 401** alle richieste anonime di pull. Finché il pull anonimo non funziona, **l'installazione su Umbrel tramite App Store resta bloccata**.
 
 > Progetto amatoriale non ufficiale. Pokémon e i relativi marchi appartengono ai rispettivi titolari (Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company). Nessuna affiliazione. Il gioco non contiene dati né immagini Pokémon: vengono scaricati da PokéAPI sul tuo server.

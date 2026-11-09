@@ -1,6 +1,19 @@
 # Changelog
 
-## Non rilasciato — Overlay Themes
+## 1.0.0-rc.3 — Overlay Themes e correzioni dopo l'audit pre-release
+
+Terza versione candidata, preparata in locale: **non ancora pubblicata** (nessun tag, nessuna immagine su GHCR, digest da generare con la CI del rilascio).
+
+### Aggiornamento dalla 1.0.0-rc.2
+- Il database passa dallo schema v2 al v3 (tabella `overlay_themes`). Prima della migrazione l'app crea da sola il backup `…-pre-migration.sqlite.gz`.
+- Le impostazioni overlay esistenti diventano il tema Classico: l'aspetto in diretta non cambia.
+- Rollback alla rc.2: vedi README → *Tornare a una versione precedente*.
+
+### Stato delle verifiche
+- **Test automatici locali**: 156/156 su Node 24.22.2 (la versione dell'immagine `node:24-alpine`) e su Node 26.13.0, con Twitch simulato (`FakeTwitch`, `FakeEventSub`). Comprendono migrazioni, backup e ripristino, errori temporanei di Twitch e sicurezza.
+- **Verifiche locali con script**: rollback rc.2 ↔ rc.3 sulla stessa cartella dati (nessun dato perso); backup creato con una versione di Node e ripristinato con l'altra; avvio del server con `/health` e `scripts/healthcheck.js`.
+- **Test browser automatizzati** (Chromium del browser integrato, non OBS): pagine della dashboard e Overlay Designer, cookie malformato, conflitto di revisione dei temi (409).
+- **Non ancora verificati**: CI di GitHub su questa versione (test Node 24, container amd64/arm64, linter Umbrel), build e pubblicazione dell'immagine, installazione e rollback su un vero Umbrel, Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi), overlay dentro OBS.
 
 ### Overlay Designer
 - Nuova sezione **Overlay Designer**, che sostituisce la pagina *Overlay*.
