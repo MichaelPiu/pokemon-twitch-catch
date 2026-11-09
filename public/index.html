@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Catch</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/public.css">
+</head>
+<body data-page="landing">
+  <main class="pub">
+    <header class="hero card">
+      <img src="/favicon.svg" alt="" class="hero-logo">
+      <h1>Live Catch</h1>
+      <p class="lead">Il gioco di cattura interattivo della diretta Twitch.</p>
+      <div id="live" class="row" style="justify-content:center"></div>
+    </header>
+    <section class="grid c3" style="margin-top:16px">
+      <div class="card"><h2>1 · Guarda la diretta</h2><p class="muted">Durante la live, a intervalli casuali, compare un Pokémon selvatico sull'overlay della stream.</p></div>
+      <div class="card"><h2>2 · Usa i punti canale</h2><p class="muted">Riscatta una ricompensa per lanciare la tua ball: più è potente, più è facile catturarlo!</p></div>
+      <div class="card"><h2>3 · Completa il Pokédex</h2><p class="muted">Ogni cattura finisce nel tuo Pokédex personale. Scrivi <code>!pokedex</code> in chat per vederlo.</p></div>
+    </section>
+    <section class="card" style="margin-top:16px">
+      <h2>Cerca un allenatore</h2>
+      <form id="search" class="row"><input name="u" placeholder="username Twitch" style="max-width:320px" pattern="[A-Za-z0-9_]{1,25}" required><button class="btn primary">Apri Pokédex</button>
+        <a class="btn" href="/leaderboard" id="lb-link">🏆 Classifica</a></form>
+    </section>
+    <section id="stats" class="grid c3" style="margin-top:16px"></section>
+    <footer class="disclaimer center">Progetto amatoriale non ufficiale. Pokémon e i relativi nomi e immagini sono marchi e proprietà di Nintendo, Creatures Inc., GAME FREAK inc. e The Pokémon Company. Questo progetto non è affiliato né approvato da loro. Dati da PokéAPI.</footer>
+  </main>
+  <script type="module" src="/assets/js/public.js"></script>
+</body>
+</html>

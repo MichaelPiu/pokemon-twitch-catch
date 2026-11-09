@@ -1,0 +1,78 @@
+/* Overlay OBS: sfondo trasparente, nessun elemento amministrativo. */
+:root {
+  --primary: #e3350d; --accent: #ffcb05; --panel: rgba(16, 18, 32, 0.82); --text: #fff; --ok: #3ddc84; --ko: #ff5b5b;
+  --scale: 1; --speed: 1; --ox: 40px; --oy: 40px;
+  --font: 'Fredoka', 'Nunito', 'Segoe UI', system-ui, sans-serif;
+}
+html, body { margin: 0; padding: 0; background: transparent !important; overflow: hidden; width: 100%; height: 100%; }
+body { font-family: var(--font); color: var(--text); }
+#stage { position: fixed; inset: 0; pointer-events: none; }
+.hidden { display: none !important; }
+
+.anchor { position: absolute; display: flex; flex-direction: column; gap: 12px; align-items: center; transform-origin: var(--origin, bottom right); transform: scale(var(--scale)); }
+.pos-top-left { top: var(--oy); left: var(--ox); --origin: top left; align-items: flex-start; }
+.pos-top-right { top: var(--oy); right: var(--ox); --origin: top right; align-items: flex-end; }
+.pos-bottom-left { bottom: var(--oy); left: var(--ox); --origin: bottom left; align-items: flex-start; }
+.pos-bottom-right { bottom: var(--oy); right: var(--ox); --origin: bottom right; align-items: flex-end; }
+.pos-top-center { top: var(--oy); left: 50%; --origin: top center; transform: translateX(-50%) scale(var(--scale)); }
+.pos-bottom-center { bottom: var(--oy); left: 50%; --origin: bottom center; transform: translateX(-50%) scale(var(--scale)); }
+.pos-center { top: 50%; left: 50%; --origin: center; transform: translate(-50%, -50%) scale(var(--scale)); }
+
+.spawn {
+  position: relative; width: 300px; padding: 16px 18px 14px; border-radius: 22px; background: var(--panel);
+  border: 3px solid var(--rc, var(--accent)); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), 0 0 30px color-mix(in srgb, var(--rc, var(--accent)) 35%, transparent);
+  text-align: center; backdrop-filter: blur(4px);
+}
+.anim .spawn.enter { animation: pop calc(0.6s / var(--speed)) cubic-bezier(.2, 1.6, .4, 1) both; }
+.anim .spawn.leave { animation: vanish calc(0.5s / var(--speed)) ease-in both; }
+@keyframes pop { from { transform: scale(0.2) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vanish { to { transform: scale(0.3) translateY(20px); opacity: 0; } }
+
+.spawn .head { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.spawn .img-wrap { position: relative; height: 170px; display: grid; place-items: center; }
+.spawn img.mon { max-width: 170px; max-height: 170px; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.55)); }
+.anim .spawn img.mon { animation: bob calc(2.6s / var(--speed)) ease-in-out infinite; }
+.spawn.caught img.mon { animation: suck calc(0.6s / var(--speed)) ease-in forwards !important; }
+@keyframes bob { 50% { transform: translateY(-8px); } }
+@keyframes suck { to { transform: scale(0); opacity: 0; filter: brightness(4); } }
+.spawn .name { font-size: 26px; font-weight: 800; line-height: 1.1; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+.spawn .dex { font-size: 14px; opacity: 0.75; }
+.spawn .meta { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; color: #111; background: var(--c, #ccc); text-transform: uppercase; letter-spacing: 0.5px; }
+.type { background: rgba(255,255,255,0.15); color: var(--text); }
+.spawn .timer { margin-top: 10px; height: 8px; background: rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+.spawn .timer > div { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 1s linear; }
+.spawn .foot { display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; opacity: 0.85; }
+.spawn .shiny-tag { position: absolute; top: -12px; right: -10px; background: linear-gradient(135deg, #fff6a8, #ffcb05, #ff9ed2); color: #222; font-weight: 900; padding: 3px 10px; border-radius: 999px; font-size: 13px; }
+.sparkle { position: absolute; width: 10px; height: 10px; background: #fff; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: twinkle 1.6s ease-in-out infinite; }
+@keyframes twinkle { 50% { transform: scale(1.6) rotate(45deg); opacity: 0.3; } }
+
+/* Orb di cattura (design originale) */
+.orb { position: absolute; width: 38px; height: 38px; border-radius: 50%; left: 50%; bottom: -10px; margin-left: -19px; z-index: 3;
+  background: radial-gradient(circle at 32% 30%, #fff 0 9%, color-mix(in srgb, var(--bc) 65%, #fff) 20%, var(--bc) 56%, color-mix(in srgb, var(--bc) 50%, #000) 100%);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 0 18px var(--bc); }
+.anim .orb.fly { animation: fly calc(0.7s / var(--speed)) cubic-bezier(.3,.1,.3,1) forwards; }
+.anim .orb.shake { animation: shake calc(0.45s / var(--speed)) ease-in-out 3; }
+.orb.fly, .orb.shake, .orb.done { bottom: 70px; }
+@keyframes fly { from { transform: translate(140px, 140px) scale(0.6) rotate(0); bottom: -10px; } to { transform: none; bottom: 70px; } }
+@keyframes shake { 25% { transform: rotate(-22deg); } 75% { transform: rotate(22deg); } }
+.orb.burst { animation: burst calc(0.4s / var(--speed)) ease-out forwards; }
+@keyframes burst { to { transform: scale(2.2); opacity: 0; } }
+
+/* Notifiche */
+.notes { position: absolute; display: flex; flex-direction: column; gap: 8px; }
+.note { min-width: 260px; max-width: 420px; padding: 10px 16px; border-radius: 14px; background: var(--panel); border-left: 6px solid var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,0.4); font-size: 17px; font-weight: 600; }
+.note.ok { border-left-color: var(--ok); }
+.note.ko { border-left-color: var(--ko); }
+.note.big { font-size: 22px; padding: 14px 20px; border: 3px solid var(--ok); border-left-width: 8px; background: linear-gradient(135deg, color-mix(in srgb, var(--ok) 30%, var(--panel)), var(--panel)); }
+.note b { color: var(--accent); }
+.anim .note { animation: slideIn calc(0.35s / var(--speed)) ease-out both; }
+.anim .note.out { animation: slideOut calc(0.35s / var(--speed)) ease-in both; }
+@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slideOut { to { transform: translateX(40px); opacity: 0; } }
+
+.confetti { position: absolute; width: 8px; height: 14px; top: 40%; left: 50%; animation: conf calc(1.4s / var(--speed)) ease-out forwards; }
+@keyframes conf { to { transform: translate(var(--dx), var(--dy)) rotate(720deg); opacity: 0; } }
+
+.preview-badge { position: fixed; top: 8px; left: 8px; font-size: 12px; background: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 6px; color: #fff; }
+.demo-badge { position: absolute; top: -12px; left: -10px; background: #7dd3fc; color: #111; font-weight: 900; padding: 3px 10px; border-radius: 999px; font-size: 12px; }

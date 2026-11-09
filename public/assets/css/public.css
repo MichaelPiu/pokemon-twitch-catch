@@ -1,0 +1,15 @@
+.pub { max-width: 1100px; margin: 0 auto; padding: 28px 18px 40px; }
+.hero { text-align: center; padding: 34px 18px; }
+.hero h1 { font-size: 2.6rem; margin: 6px 0; background: linear-gradient(90deg, var(--accent), var(--primary2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero-logo { width: 84px; height: 84px; animation: spin 12s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.lead { font-size: 1.15rem; color: var(--muted); }
+.pub footer { margin-top: 28px; }
+.pub .mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.pub .mon-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; position: relative; }
+.pub .mon-card img { width: 90px; height: 90px; object-fit: contain; }
+.pub .mon-card .cnt { position: absolute; top: 8px; right: 8px; font-size: 0.75rem; background: rgba(0,0,0,0.4); padding: 1px 7px; border-radius: 999px; }
+.pub .mon-card .sh { position: absolute; top: 8px; left: 8px; }
+.progress { height: 12px; background: #0f1330; border-radius: 8px; overflow: hidden; margin-top: 8px; }
+.progress > div { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+.podium td:first-child { font-weight: 800; color: var(--accent); }

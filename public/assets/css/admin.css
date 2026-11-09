@@ -1,0 +1,70 @@
+/* Layout dashboard */
+.boot { display: grid; place-items: center; height: 100vh; color: var(--muted); }
+.layout { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.sidebar {
+  background: linear-gradient(180deg, #151a3a, #0f1330);
+  border-right: 1px solid var(--line);
+  padding: 18px 12px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; font-weight: 800; font-size: 1.15rem; }
+.brand img { width: 34px; height: 34px; }
+.brand small { display: block; color: var(--muted); font-weight: 500; font-size: 0.72rem; }
+.nav a {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; color: var(--text);
+  font-weight: 500; text-decoration: none; transition: background 0.15s;
+}
+.nav a .ico { width: 22px; text-align: center; opacity: 0.9; }
+.nav a:hover { background: rgba(255,255,255,0.05); }
+.nav a.active { background: linear-gradient(90deg, rgba(227,53,13,0.35), rgba(227,53,13,0.05)); box-shadow: inset 3px 0 0 var(--primary); }
+.nav .sep { margin: 10px 12px 4px; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.side-status { margin-top: auto; padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); font-size: 0.82rem; }
+.main { padding: 24px 28px 60px; max-width: 1500px; width: 100%; }
+.topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.topbar h1 { margin: 0; }
+.menu-btn { display: none; }
+
+.login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.login { width: min(420px, 100%); }
+.login .brand { justify-content: center; font-size: 1.4rem; }
+.login form { display: grid; gap: 12px; }
+
+.spawn-live { display: flex; gap: 18px; align-items: center; }
+.spawn-live img { width: 110px; height: 110px; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5)); animation: bob 2.4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-6px); } }
+
+.preview-frame { width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background:
+  repeating-conic-gradient(#1b1f3b 0% 25%, #14182f 0% 50%) 50% / 24px 24px; }
+
+.mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.mon-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; position: relative; }
+.mon-card img { width: 84px; height: 84px; object-fit: contain; }
+.mon-card .nm { font-weight: 700; }
+.mon-card.off { opacity: 0.45; }
+.mon-card .cnt { position: absolute; top: 8px; right: 8px; font-size: 0.75rem; background: rgba(0,0,0,0.4); padding: 1px 7px; border-radius: 999px; }
+.mon-card .shiny { position: absolute; top: 8px; left: 8px; }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tabs button { border-radius: 999px; }
+.tabs button.on { background: var(--accent); color: #111; border-color: var(--accent); }
+
+.steps { counter-reset: step; display: grid; gap: 12px; padding: 0; list-style: none; }
+.steps li { counter-increment: step; padding-left: 40px; position: relative; }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); display: grid; place-items: center; font-weight: 800; }
+
+.log-line { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: pre-wrap; word-break: break-word; }
+.log-line.warn { color: var(--warn); }
+.log-line.error { color: var(--err); }
+.log-box { max-height: 480px; overflow: auto; background: #0b0e22; border-radius: 10px; border: 1px solid var(--line); }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(5, 6, 15, 0.7); display: grid; place-items: center; z-index: 900; padding: 20px; animation: fadeUp 0.15s; }
+.modal { width: min(720px, 100%); max-height: 90vh; overflow: auto; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; z-index: 800; width: 260px; left: -270px; transition: left 0.2s; }
+  .sidebar.open { left: 0; }
+  .menu-btn { display: inline-flex; }
+  .main { padding: 16px; }
+}
