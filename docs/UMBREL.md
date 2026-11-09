@@ -4,10 +4,12 @@
 
 | Verifica | Stato | Dove |
 |---|---|---|
-| Test automatici (logica, API, sicurezza, Channel Points con Twitch simulato) | Verificata: suite completa eseguita | `npm test`, job CI *Test automatici* |
-| Avvio reale del container amd64 e arm64: healthcheck, UID 1000, volume, persistenza dopo il riavvio, arresto pulito, password assenti dai log | Verificata nella CI di GitHub (runner Ubuntu; arm64 in emulazione QEMU) | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
-| Linter ufficiale di Umbrel sul pacchetto | Verificato nella CI | job CI *Linter ufficiale Umbrel* |
-| Immagine scaricabile senza autenticazione | **Bloccata**: il pacchetto GHCR è privato (decisione del proprietario) | passo finale del job *Pubblicazione*, Action dello store |
+| Test automatici (logica, API, sicurezza, Channel Points con Twitch simulato) | Verificata: 83/83 in locale e nella CI (Node 24) | `npm test`, job CI *Test automatici* |
+| Avvio reale del container amd64 e arm64: healthcheck, UID 1000, volume, persistenza dopo il riavvio, arresto pulito, password assenti dai log, volume non scrivibile | Verificata nella CI di GitHub, run del tag `v1.0.0-rc.1` (runner Ubuntu; arm64 in emulazione QEMU) | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
+| Linter ufficiale di Umbrel sul pacchetto | Verificato: nessun errore. Nel repository di sviluppo l'unico avviso è l'immagine senza digest, che è invece fissato nello store | job CI *Linter ufficiale Umbrel* |
+| Immagine multi-arch pubblicata | Verificata: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.1@sha256:9daaabff4e05c50f04268153c28046965db31ce04b39034e0851be2aa49637f1` | job CI *Pubblicazione* |
+| Store pubblico: clone anonimo, manifest e icona raggiungibili | Verificata (HTTP 200, `git clone` senza credenziali) | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
+| Immagine scaricabile senza autenticazione | **Bloccata**: il pacchetto GHCR è privato (decisione del proprietario). La richiesta anonima riceve HTTP 401 e l'Action dello store fallisce **solo** su questa verifica | passo finale del job *Pubblicazione*, Action dello store (da rilanciare dopo aver reso pubblico il pacchetto) |
 | Installazione da App Store su un vero Umbrel | **Non verificata** (serve il tuo server) | — |
 | Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi) | **Non verificata** (serve il tuo consenso e il tuo canale) | — |
 | Overlay dentro OBS | **Non verificata** | — |
