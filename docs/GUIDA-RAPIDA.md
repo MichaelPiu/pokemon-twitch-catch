@@ -10,14 +10,15 @@ Tempo stimato: 20–30 minuti, da fare una sola volta.
 ## Passo 1 — Installa l'app su Umbrel
 1. Dal computer apri il browser e vai su **http://umbrel.local**.
 2. Clicca **App Store**, poi i **tre puntini ⋯** in alto a destra → **Community App Stores**.
-3. Incolla l'indirizzo dello store che ti è stato fornito (es. `https://github.com/MichaelPiu/pokemon-twitch-catch`) e premi **Add**.
+3. Incolla l'indirizzo dello store **`https://github.com/MichaelPiu/piu-umbrel-app-store`** e premi **Add**.
 4. Apri lo store **Piu**, clicca **Live Catch** → **Install**. Attendi qualche minuto.
 5. Nella scheda dell'app su Umbrel trovi **utente** (`admin`) e **password iniziale**: annotali.
 
 ## Passo 2 — Primo accesso
 1. Apri l'app (oppure vai su **http://umbrel.local:8788/admin**).
 2. Accedi con utente e password del passo 1.
-3. Scegli una **nuova password** personale (almeno 10 caratteri, con lettere e numeri) e conservala.
+3. Scegli una **nuova password** personale (almeno 10 caratteri, con lettere e numeri) e conservala. Da questo momento la password mostrata da Umbrel non vale più: usa sempre la tua.
+4. (Consigliato, si può fare anche dopo) Per la massima sicurezza dai alla dashboard un **indirizzo tutto suo**, ad esempio `livecatch.lan`: vedi *Sicurezza dell'accesso → Hostname dedicato* nel README. L'overlay di OBS non cambia.
 
 ## Passo 3 — Scarica i Pokémon
 1. Nel menu a sinistra clicca **Pokémon**.
@@ -34,7 +35,8 @@ Tempo stimato: 20–30 minuti, da fare una sola volta.
 3. **Riquadro 2**: premi **Collega account del canale**. Compare un codice grande.
    - Dal telefono o dal PC apri **twitch.tv/activate**, accedi con l'account del TUO canale, scrivi il codice e premi *Autorizza*.
    - Dopo pochi secondi la dashboard mostra “✅ Collegato”.
-4. **Riquadro 4**: crea le ricompense. Scegli *Poké Ball*, costo `300`, premi **Crea**. Ripeti per *Mega Ball* (800), *Ultra Ball* (2000), *Master Ball* (25000).
+4. **Riquadro 4**: crea le ricompense **da qui** (non a mano su Twitch). Scegli *Poké Ball*, costo `300`, premi **Crea**. Ripeti per *Mega Ball* (800), *Ultra Ball* (2000), *Master Ball* (25000).
+   - Così l'app le mette **in pausa da sola** quando non sei in diretta e **rimborsa** i punti se un lancio non è valido. Con le ricompense create a mano su Twitch questo non è possibile.
 5. In alto premi **Testa connessione**: devono essere quasi tutte ✅ (“EventSub” è ✅ se il server è connesso).
 
 ## Passo 5 — Aggiungi l'overlay in OBS
@@ -54,5 +56,5 @@ Comandi da comunicare agli spettatori: `!pokedex`, `!pokemon`, `!dex @nome`, `!u
 
 ## Se qualcosa non va
 - In **Panoramica** guarda il riquadro *Stato Twitch*: se è **ERRORE**, vai in **Gestione Twitch** e ricollega l'account.
-- **IN PAUSA** significa che il server ha perso momentaneamente Internet: il gioco riprende da solo.
+- **IN PAUSA** significa che il server ha perso momentaneamente Internet: il gioco riprende da solo. I riscatti fatti nel frattempo vengono recuperati e, se il Pokémon non c'era più, rimborsati.
 - Hai dimenticato la password? Vedi la sezione *Risoluzione problemi* nel README.

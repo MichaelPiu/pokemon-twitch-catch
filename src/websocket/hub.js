@@ -1,12 +1,13 @@
-// Hub WebSocket: canale "overlay" (pubblico, sola lettura) e canale "admin"
-// (richiede sessione amministratore valida).
+// Hub WebSocket: canale "overlay" (pubblico, sola lettura, accessibile da OBS da
+// qualsiasi origine) e canale "admin" (sessione valida + controllo Host/Origin,
+// delegati ad authorizeAdmin).
 import { WebSocketServer } from 'ws';
-import { parseCookies } from '../http/router.js';
-import { SESSION_COOKIE } from '../security/auth.js';
+
+const STATUS_TEXT = { 401: 'Unauthorized', 403: 'Forbidden', 421: 'Misdirected Request' };
 
 export class WsHub {
-  constructor({ auth, log }) {
-    this.auth = auth;
+  constructor({ authorizeAdmin, log }) {
+    this.authorizeAdmin = authorizeAdmin;
     this.log = log;
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
     this.clients = { overlay: new Set(), admin: new Set() };
@@ -22,9 +23,10 @@ export class WsHub {
     let channel = null;
     if (url.pathname === '/ws/overlay') channel = 'overlay';
     else if (url.pathname === '/ws/admin') {
-      const session = this.auth.resolve(parseCookies(req.headers.cookie)[SESSION_COOKIE]);
-      if (!session || session.mustChangePassword) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      const auth = this.authorizeAdmin ? this.authorizeAdmin(req) : { ok: false, status: 401 };
+      if (!auth.ok) {
+        const code = auth.status || 401;
+        socket.write(`HTTP/1.1 ${code} ${STATUS_TEXT[code] || 'Forbidden'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
         socket.destroy();
         return;
       }

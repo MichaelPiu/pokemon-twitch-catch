@@ -13,10 +13,15 @@ export function captureProbability({ settings, rarity, catchModifier = 1, ball, 
   return Math.min(c.maxChance ?? 0.95, Math.max(c.minChance ?? 0.01, p));
 }
 
+// Ricompensa collegata al gioco e relativa Poké Ball. null = ricompensa estranea al
+// gioco (non viene toccata). unmapped = ricompensa del gioco senza Poké Ball valida:
+// il riscatto viene rifiutato (e rimborsato se possibile) invece di essere ignorato.
 export function resolveBallForReward(db, rewardId) {
-  return db.get(
-    `SELECT b.*, r.reward_id, r.managed_by_app, r.is_enabled AS reward_enabled
-     FROM twitch_rewards r JOIN ball_types b ON b.id = r.ball_type_id WHERE r.reward_id = ?`, rewardId) || null;
+  if (!rewardId) return null;
+  const r = db.get('SELECT reward_id, managed_by_app, is_enabled AS reward_enabled, ball_type_id FROM twitch_rewards WHERE reward_id = ?', rewardId);
+  if (!r) return null;
+  const b = r.ball_type_id ? db.get('SELECT * FROM ball_types WHERE id = ?', r.ball_type_id) : null;
+  return { ...(b || {}), reward_id: r.reward_id, managed_by_app: r.managed_by_app, reward_enabled: r.reward_enabled, unmapped: !b };
 }
 
 // input: { redemptionId, rewardId?, ballTypeId? (demo), user: {twitchId, login, displayName},
@@ -37,17 +42,19 @@ export function processAttempt(db, settings, input, rng = Math.random) {
     }
 
     const user = upsertUser(db, { ...input.user, isDemo: input.isDemo });
+    const source = input.isDemo ? 'demo' : (input.source || 'eventsub');
     const reject = (reason, extra = {}) => {
       const r = db.run(
-        `INSERT INTO capture_attempts (redemption_id, user_id, spawn_id, session_id, ball_type_id, reward_id, is_demo, outcome, reject_reason, redeemed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'rejected', ?, ?)`,
+        `INSERT INTO capture_attempts (redemption_id, user_id, spawn_id, session_id, ball_type_id, reward_id, is_demo, outcome, reject_reason, redeemed_at, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'rejected', ?, ?, ?)`,
         input.redemptionId || null, user.id, extra.spawnId ?? null, input.sessionId ?? null, ball?.id ?? null,
-        input.rewardId || null, input.isDemo ? 1 : 0, reason, input.redeemedAt || nowIso(),
+        input.rewardId || null, input.isDemo ? 1 : 0, reason, input.redeemedAt || nowIso(), source,
       );
       return { rejected: true, reason, user, ball, attemptId: Number(r.lastInsertRowid), managed: !!ball?.managed_by_app, spawnId: extra.spawnId ?? null };
     };
 
     if (!input.accepting?.ok) return reject(input.accepting?.reason || 'offline');
+    if (ball?.unmapped) return reject('reward_unmapped');
     if (!ball || !ball.enabled || (!input.isDemo && !ball.reward_enabled)) return reject('ball_disabled');
     if (isBanned(db, user.id)) return reject('banned');
 
@@ -97,10 +104,10 @@ export function processAttempt(db, settings, input, rng = Math.random) {
     }
 
     const ins = db.run(
-      `INSERT INTO capture_attempts (redemption_id, user_id, spawn_id, session_id, ball_type_id, reward_id, is_demo, probability, roll, outcome, user_pokemon_id, redeemed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO capture_attempts (redemption_id, user_id, spawn_id, session_id, ball_type_id, reward_id, is_demo, probability, roll, outcome, user_pokemon_id, redeemed_at, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       input.redemptionId || null, user.id, spawnRow.id, spawnRow.session_id, ball.id, input.rewardId || null,
-      input.isDemo ? 1 : 0, probability, roll, caught ? 'caught' : 'failed', userPokemonId, input.redeemedAt || nowIso());
+      input.isDemo ? 1 : 0, probability, roll, caught ? 'caught' : 'failed', userPokemonId, input.redeemedAt || nowIso(), source);
 
     db.run('UPDATE spawn_history SET attempts = attempts + 1, captures = captures + ? WHERE id = ?', caught ? 1 : 0, spawnRow.id);
     db.run(
@@ -140,7 +147,7 @@ export function handleRedemptionUpdate(db, settings, { redemptionId, status }) {
   return db.tx(() => {
     const a = db.get('SELECT * FROM capture_attempts WHERE redemption_id = ?', redemptionId);
     if (!a) return { found: false };
-    db.run('UPDATE capture_attempts SET redemption_status = ? WHERE id = ?', status, a.id);
+    db.run('UPDATE capture_attempts SET redemption_status = ? WHERE id = ?', String(status).toUpperCase(), a.id);
     let revoked = false;
     if (String(status).toLowerCase() === 'canceled' && a.user_pokemon_id && settings.capture.revokeOnCancel) {
       db.run('DELETE FROM user_pokemon WHERE id = ?', a.user_pokemon_id);

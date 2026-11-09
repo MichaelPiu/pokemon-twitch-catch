@@ -69,6 +69,14 @@ export function validateGame(body, store) {
       offlineConfirmations: num(l.offlineConfirmations, 1, 10, 'Conferme offline', true),
     };
   }
+  if (body.rewards) {
+    const w = { ...store.get('rewards'), ...body.rewards };
+    out.rewards = {
+      autoPause: v.bool(w.autoPause),
+      reconcileEnabled: v.bool(w.reconcileEnabled),
+      reconcileIntervalS: num(w.reconcileIntervalS, 60, 3600, 'Intervallo recupero riscatti', true),
+    };
+  }
   return out;
 }
 

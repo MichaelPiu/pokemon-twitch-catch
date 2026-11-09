@@ -9,3 +9,4 @@ docs
 umbrel
 *.md
 .env*
+store

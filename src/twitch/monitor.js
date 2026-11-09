@@ -3,12 +3,20 @@
 // Il motore di gioco viene acceso/spento SOLO da qui.
 import { STATES } from '../game_engine/stateMachine.js';
 import { EventSubClient } from '../eventsub/client.js';
+import { RedemptionReconciler } from './reconcile.js';
 
 const ONLINE_GRACE_MS = 3 * 60 * 1000;
 
 export class TwitchMonitor {
-  constructor({ config, db, credentials, helix, oauth, sm, engine, commands, chat, gameSettings, hub, log, WebSocketImpl, timers = true }) {
-    Object.assign(this, { config, db, creds: credentials, helix, oauth, sm, engine, commands, chat, gameSettings, hub, log });
+  constructor({ config, db, credentials, helix, oauth, sm, engine, commands, chat, gameSettings, hub, log, WebSocketImpl, timers = true, rewards = null }) {
+    Object.assign(this, { config, db, creds: credentials, helix, oauth, sm, engine, commands, chat, gameSettings, hub, log, rewards });
+    this.reconciler = new RedemptionReconciler({
+      db, helix, credentials, gameSettings, log,
+      process: (redemption, opts) => this.onRedemption(redemption, opts),
+    });
+    this.pauseChain = Promise.resolve();
+    this.lastPauseSync = null;
+    this.reconcileSoonTimer = null;
     this.WebSocketImpl = WebSocketImpl;
     this.timersEnabled = timers;
     this.eventsub = null;
@@ -34,6 +42,8 @@ export class TwitchMonitor {
   // Reazione del motore di gioco a ogni transizione di stato.
   onTransition({ to, reason }) {
     this.hub.admin('state', { ...this.sm.snapshot() });
+    // Dopo che il motore ha reagito alla transizione, allinea la pausa delle ricompense.
+    setImmediate(() => this.syncRewardPause());
     if (to === STATES.LIVE) return; // l'attivazione avviene in goLive() con i dati della diretta
     if (to === STATES.OFFLINE) {
       if (this.engine.mode === 'live' || this.engine.sessions.current(false)) this.engine.deactivate(reason || 'stream_offline');
@@ -63,6 +73,7 @@ export class TwitchMonitor {
   }
 
   stop() {
+    clearTimeout(this.reconcileSoonTimer);
     clearInterval(this.pollTimer);
     clearInterval(this.validateTimer);
     this.pollTimer = null;
@@ -99,6 +110,37 @@ export class TwitchMonitor {
     this.log.info('EventSub connesso');
     if (resubscribe) await this.subscribe(sessionId);
     await this.confirmState('eventsub_connected');
+    // Riscatti avvenuti mentre l'app non riceveva eventi (avvio, disconnessione).
+    await this.reconciler.run('eventsub_connected').catch((e) => this.log.warn('Riconciliazione riscatti fallita', { message: e.message }));
+  }
+
+  // --- Ricompense: pausa automatica e riconciliazione ------------------------
+  // Il gioco accetta lanci solo in LIVE con il motore attivo: in tutti gli altri
+  // stati le ricompense create dall'app vengono messe in pausa su Twitch.
+  desiredPaused() {
+    return !(this.sm.state === STATES.LIVE && this.engine.mode === 'live' && !this.engine.suspended);
+  }
+
+  // Il database può essere già chiuso quando scatta un callback ritardato (arresto, ripristino).
+  alive() { return !!this.db?.db; }
+
+  syncRewardPause({ force = false } = {}) {
+    if (!this.alive() || !this.rewards || !this.gameSettings.get('rewards').autoPause || !this.configured()) return this.pauseChain;
+    this.pauseChain = this.pauseChain.then(async () => {
+      if (!this.alive()) return;
+      const paused = this.desiredPaused();
+      if (!force && !this.rewards.needsPauseSync(paused)) return;
+      const r = await this.rewards.syncPause(paused, { force });
+      this.lastPauseSync = { at: new Date().toISOString(), paused, ...r };
+      this.hub.admin('rewards_pause', this.lastPauseSync);
+    }).catch((e) => this.log.warn('Sincronizzazione pausa ricompense fallita', { message: e.message }));
+    return this.pauseChain;
+  }
+
+  reconcileSoon(reason, delayMs = 5000) {
+    clearTimeout(this.reconcileSoonTimer);
+    this.reconcileSoonTimer = setTimeout(() => { if (this.alive()) this.reconciler.run(reason).catch(() => {}); }, delayMs);
+    this.reconcileSoonTimer.unref?.();
   }
 
   onDisconnected({ reason }) {
@@ -195,6 +237,13 @@ export class TwitchMonitor {
       return;
     }
     if (this.sm.state === STATES.ERROR && this.eventsub?.connected) this.sm.goTo(STATES.CONNECTING, 'recovered');
+    // Ritenta la pausa/riattivazione delle ricompense non riuscita e recupera
+    // periodicamente i riscatti rimasti in coda.
+    this.syncRewardPause();
+    const rc = this.gameSettings.get('rewards');
+    if (this.eventsub?.connected && rc.reconcileEnabled && Date.now() - this.reconciler.lastRunAt >= rc.reconcileIntervalS * 1000) {
+      this.reconciler.run('periodic').catch(() => {});
+    }
     if (stream) {
       this.offlineCount = 0;
       if (this.sm.state !== STATES.LIVE) this.goLive({ broadcastId: stream.id, title: stream.title, startedAt: stream.started_at }, 'poll_live');
@@ -242,6 +291,11 @@ export class TwitchMonitor {
     // Messaggi più vecchi di 10 minuti vengono scartati (protezione replay).
     if (n.messageTimestamp && Date.now() - Date.parse(n.messageTimestamp) > 10 * 60 * 1000) {
       this.log.warn('Evento EventSub troppo vecchio scartato', { type: n.type });
+      this.db.run(
+        "INSERT OR IGNORE INTO twitch_events (message_id, event_type, message_timestamp, status, detail, payload) VALUES (?, ?, ?, 'stale', ?, ?)",
+        n.messageId, n.type, n.messageTimestamp, 'scartato: più vecchio di 10 minuti', JSON.stringify(n.event ?? {}).slice(0, 4000));
+      // Un riscatto tardivo non va perso: se è ancora in coda su Twitch lo recupera la riconciliazione.
+      if (n.type === 'channel.channel_points_custom_reward_redemption.add') this.reconcileSoon('evento_tardivo');
       return { skipped: 'stale' };
     }
     if (!this.recordEvent(n)) return { skipped: 'duplicate' };
@@ -283,37 +337,33 @@ export class TwitchMonitor {
     }
   }
 
-  onRedemption(ev) {
+  onRedemption(ev, { source = 'eventsub' } = {}) {
     const res = this.engine.attempt({
       redemptionId: ev.id,
       rewardId: ev.reward?.id,
       user: { twitchId: ev.user_id, login: ev.user_login, displayName: ev.user_name },
       redeemedAt: ev.redeemed_at,
       isDemo: false,
+      source,
     });
     if (res.ignored) return { detail: 'ricompensa non di gioco' };
     if (res.duplicate) return { detail: 'duplicato' };
     const capture = this.gameSettings.get('capture');
     // Aggiorna lo stato della riscossione su Twitch, solo per ricompense create dall'app
-    // e solo se la riscossione è ancora in coda.
-    if (res.managed && ev.status === 'unfulfilled') {
-      let status = null;
-      if (res.rejected && capture.refundRejected) status = 'CANCELED';
-      else if (!res.rejected && capture.fulfillProcessed) status = 'FULFILLED';
-      if (status) {
-        this.helix.updateRedemption(this.broadcaster.userId, ev.reward.id, ev.id, status)
-          .then(() => this.db.run('UPDATE capture_attempts SET redemption_status = ? WHERE redemption_id = ?', status, ev.id))
-          .catch((e) => this.log.warn('Aggiornamento riscossione fallito', { message: e.message }));
-      }
+    // e solo se la riscossione è ancora in coda. Lo stato viene salvato e, in caso di
+    // errore, ritentato dalla riconciliazione.
+    if (res.managed && String(ev.status || '').toLowerCase() === 'unfulfilled') {
+      const status = this.reconciler.desiredFor({ outcome: res.rejected ? 'rejected' : 'processed' });
+      if (status) this.reconciler.setDesired(ev.id, status).catch(() => {});
     }
     if (res.rejected) {
       if (res.reason !== 'banned' && ['no_spawn', 'expired', 'late', 'user_limit', 'already_caught'].includes(res.reason) && this.sm.state === STATES.LIVE) {
         const why = { no_spawn: 'nessun Pokémon in giro al momento', expired: 'il Pokémon è già fuggito', late: 'il Pokémon non era ancora apparso', user_limit: 'hai esaurito i tentativi per questo Pokémon', already_caught: 'qualcuno l\'ha già catturato' }[res.reason];
         this.chat?.send(`@${res.user.display_name} ${why}${res.managed && capture.refundRejected ? ' (punti rimborsati)' : ''}.`);
       }
-      return { detail: `rifiutato: ${res.reason}` };
+      return { detail: `rifiutato: ${res.reason}${source === 'recovered' ? ' (recuperato)' : ''}` };
     }
-    return { detail: res.caught ? 'catturato' : 'fallito' };
+    return { detail: `${res.caught ? 'catturato' : 'fallito'}${source === 'recovered' ? ' (recuperato)' : ''}` };
   }
 
   onChat(ev) {
@@ -342,6 +392,8 @@ export class TwitchMonitor {
       lastError: this.lastError,
       eventsReceived: this.eventsReceived,
       chat: this.chat?.stats(),
+      reconcile: this.reconciler.last,
+      rewardsPause: { autoPause: !!this.gameSettings.get('rewards').autoPause, desiredPaused: this.desiredPaused(), last: this.lastPauseSync },
     };
   }
 }

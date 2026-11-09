@@ -15,6 +15,11 @@ services:
       DATA_DIR: /data
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
       TZ: ${TZ:-Europe/Rome}
+      # Accesso diretto (nessun reverse proxy davanti): nessun proxy fidato.
+      # Se metti un reverse proxy davanti, indica qui il suo indirizzo.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      # Hostname dedicato alla dashboard (consigliato), es. livecatch.lan
+      ADMIN_HOSTS: ${ADMIN_HOSTS:-}
     volumes:
       - ./data:/data
     logging:

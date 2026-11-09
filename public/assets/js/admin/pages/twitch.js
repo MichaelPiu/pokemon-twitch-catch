@@ -1,6 +1,6 @@
 import { h, mount, get, post, put, patch, del, fmt } from '../../lib.js';
-import { card, table, act, confirmDialog, modal } from '../ui.js';
-import { stateRow } from './common.js';
+import { card, table, act, confirmDialog, modal, toast } from '../ui.js';
+import { stateRow, REJECT_LABEL } from './common.js';
 import { onLive } from '../main.js';
 
 export async function twitch({ el }) {
@@ -91,8 +91,13 @@ export async function twitch({ el }) {
         } }, 'Salva'))),
       accountBox('broadcaster', '2 · Account del canale', d.scopes.broadcaster),
       accountBox('bot', '3 · Account bot (facoltativo)', d.scopes.bot),
-      rewardsCard(d.rewards, balls, c.broadcaster.connected, load),
+      rewardsCard(d.rewards, balls, c.broadcaster.connected, load, st.rewardsPause),
+      card('5 · Riscatti e recupero dopo le disconnessioni', h('div', { id: 'tw-redemptions' }, h('div', { class: 'muted' }, 'Caricamento…'))),
       card('Eventi Twitch recenti', h('div', { id: 'tw-events' }, h('div', { class: 'muted' }, 'Caricamento…'))));
+    get('/api/admin/twitch/redemptions').then((rd) => {
+      const box = document.getElementById('tw-redemptions');
+      if (box) mount(box, redemptionsPanel(rd, c.broadcaster.connected, load));
+    }).catch(() => {});
     get('/api/admin/twitch/events?limit=50').then((ev) => {
       const box = document.getElementById('tw-events');
       if (box) mount(box, table([
@@ -114,12 +119,70 @@ export async function twitch({ el }) {
   return () => { clearInterval(pollTimer); clearTimeout(t); off(); };
 }
 
-function rewardsCard(rewards, balls, connected, reload) {
+function redemptionsPanel(rd, connected, reload) {
+  const set = { ...rd.settings };
+  const last = rd.last;
+  const outcome = (r) => (r.outcome === 'caught' ? '✅ catturato' : r.outcome === 'failed' ? '❌ fallito' : `⛔ ${REJECT_LABEL[r.reject_reason] || r.reject_reason}`);
+  return h('div', {},
+    h('p', { class: 'muted small' },
+      'Se la connessione con Twitch si interrompe, i riscatti fatti nel frattempo non arrivano all\'app. Alla riconnessione, all\'avvio e ogni pochi minuti l\'app legge da Twitch i riscatti ancora "in coda" delle ricompense ',
+      h('b', {}, 'create dall\'app'), ' e li elabora con l\'orario reale del riscatto: se il Pokémon non c\'era più, i punti vengono rimborsati. ',
+      'Gli aggiornamenti non riusciti (rimborso o conferma) vengono ritentati automaticamente.'),
+    h('div', { class: 'grid c4', style: { marginBottom: '10px' } },
+      h('div', {}, h('div', { class: 'muted small' }, 'Ultimo controllo'), h('b', {}, last ? fmt.dt(last.at) : 'mai'), last?.skipped ? h('div', { class: 'small muted' }, last.skipped) : null),
+      h('div', {}, h('div', { class: 'muted small' }, 'Recuperati / aggiornati'), h('b', {}, last ? `${last.recovered} / ${last.retried}` : '—')),
+      h('div', {}, h('div', { class: 'muted small' }, 'Da sistemare'), h('b', { style: { color: rd.pending.length ? 'var(--warn)' : '' } }, String(rd.pending.length))),
+      h('div', {}, h('div', { class: 'muted small' }, 'Errori ultimo controllo'), h('b', {}, last ? String(last.errors.length) : '—'))),
+    last?.errors?.length ? h('ul', { class: 'small', style: { color: 'var(--err)' } }, last.errors.slice(0, 5).map((e) => h('li', {}, e))) : null,
+    h('div', { class: 'form' },
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!set.autoPause, onchange: (e) => { set.autoPause = e.target.checked; } }),
+        'Metti in pausa su Twitch le ricompense dell\'app quando il gioco non è attivo (offline, disconnessione) e riattivale in LIVE'),
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!set.reconcileEnabled, onchange: (e) => { set.reconcileEnabled = e.target.checked; } }),
+        'Recupera i riscatti rimasti in coda dopo una disconnessione'),
+      h('label', { class: 'field', style: { maxWidth: '260px' } }, 'Controllo periodico ogni (secondi)',
+        h('input', { type: 'number', min: 60, max: 3600, value: set.reconcileIntervalS, oninput: (e) => { set.reconcileIntervalS = Number(e.target.value); } }))),
+    h('div', { class: 'row', style: { marginTop: '10px' } },
+      h('button', { class: 'btn primary', onclick: async () => { if (await act(() => put('/api/admin/settings/rewards', set), 'Impostazioni salvate')) reload(); } }, 'Salva'),
+      h('button', { class: 'btn', disabled: !connected, onclick: async () => {
+        const r = await act(() => post('/api/admin/twitch/redemptions/reconcile'));
+        if (r) { toastResult(r); reload(); }
+      } }, '🔄 Recupera riscatti ora'),
+      h('button', { class: 'btn', disabled: !connected, onclick: async () => { if (await act(() => post('/api/admin/twitch/rewards/sync-pause'), 'Stato delle ricompense sincronizzato')) reload(); } }, '⏯ Sincronizza pausa ricompense')),
+    rd.pending.length ? h('div', { style: { marginTop: '12px' } }, h('h3', {}, 'Riscatti con stato Twitch da aggiornare'), table([
+      { label: 'Quando', render: (r) => fmt.dt(r.created_at) },
+      { label: 'Spettatore', key: 'user' },
+      { label: 'Ricompensa', render: (r) => r.reward || '—' },
+      { label: 'Esito', render: outcome },
+      { label: 'Da impostare', render: (r) => (r.desired_status === 'CANCELED' ? 'rimborso' : 'conferma') },
+      { label: 'Tentativi', key: 'status_tries' },
+      { label: 'Errore', render: (r) => r.status_error || '—' },
+    ], rd.pending)) : null,
+    rd.recovered.length ? h('div', { style: { marginTop: '12px' } }, h('h3', {}, 'Ultimi riscatti recuperati'), table([
+      { label: 'Riscattato', render: (r) => fmt.dt(r.redeemed_at) },
+      { label: 'Recuperato', render: (r) => fmt.dt(r.created_at) },
+      { label: 'Spettatore', key: 'user' },
+      { label: 'Esito', render: outcome },
+      { label: 'Stato su Twitch', render: (r) => ({ FULFILLED: 'confermato', CANCELED: 'rimborsato' }[r.redemption_status] || 'in coda') },
+    ], rd.recovered)) : null);
+}
+
+function toastResult(r) {
+  const msg = r.skipped ? `Recupero non eseguito: ${r.skipped}` : `Controllati ${r.checked} riscatti in coda: ${r.recovered} recuperati, ${r.retried} aggiornati${r.errors.length ? `, ${r.errors.length} errori` : ''}`;
+  toast(msg, r.errors?.length ? 'err' : 'ok');
+}
+
+function rewardsCard(rewards, balls, connected, reload, pause) {
   const createState = { ballTypeId: balls[0]?.id, cost: 500, title: '' };
   const linkState = { rewardId: '', ballTypeId: balls[0]?.id, title: '' };
   const ballSelect = (obj) => h('select', { onchange: (e) => { obj.ballTypeId = Number(e.target.value); } }, balls.filter((b) => b.enabled).map((b) => h('option', { value: b.id }, b.name)));
   return card('4 · Ricompense punti canale (Poké Ball)',
-    h('p', { class: 'muted small' }, 'Le riscossioni reali dei punti canale generano i lanci. Le ricompense create da qui possono essere gestite automaticamente (rimborso se non c\'è nessun Pokémon, attivazione, costo). Le ricompense create a mano su Twitch possono essere solo collegate tramite ID. Richiede canale Affiliate o Partner.'),
+    h('p', { class: 'muted small' }, 'Le riscossioni reali dei punti canale generano i lanci. Richiede canale Affiliate o Partner.'),
+    h('div', { class: 'grid c2', style: { marginBottom: '10px' } },
+      h('div', { class: 'small' }, h('b', {}, 'Create dall\'app (consigliate): '),
+        'messe in pausa automaticamente quando il gioco non è attivo, rimborso automatico dei lanci non validi, recupero dei riscatti persi, modifica di costo e stato.'),
+      h('div', { class: 'small', style: { color: 'var(--warn)' } }, h('b', {}, 'Collegate a mano (create su Twitch): '),
+        'Twitch consente di gestirle via API solo all\'app che le ha create. Per queste l\'app NON può metterle in pausa, NON può rimborsare i punti e NON può recuperare i riscatti persi: se il gioco è offline gli spettatori spendono i punti a vuoto. Mettile in pausa tu su Twitch quando non sei in diretta, oppure sostituiscile con ricompense create da qui.')),
+    pause?.autoPause ? h('p', { class: 'small muted' }, `Pausa automatica attiva · stato previsto ora: ${pause.desiredPaused ? 'in pausa (gioco non attivo)' : 'attive (LIVE)'}`) : null,
     table([
       { label: 'Ricompensa', render: (r) => h('div', {}, h('b', {}, r.title), h('div', { class: 'muted small mono' }, r.reward_id)) },
       { label: 'Poké Ball', render: (r) => h('select', { onchange: async (e) => { await act(() => patch(`/api/admin/twitch/rewards/${r.id}`, { ballTypeId: Number(e.target.value) }), 'Associazione aggiornata'); } },
@@ -127,7 +190,10 @@ function rewardsCard(rewards, balls, connected, reload) {
       { label: 'Costo', render: (r) => (r.managed_by_app
         ? h('input', { type: 'number', min: 1, value: r.cost ?? '', style: { width: '100px' }, onchange: async (e) => { await act(() => patch(`/api/admin/twitch/rewards/${r.id}`, { cost: Number(e.target.value) }), 'Costo aggiornato su Twitch'); } })
         : (r.cost ?? '—')) },
-      { label: 'Gestione', render: (r) => (r.managed_by_app ? 'app' : 'manuale') },
+      { label: 'Gestione', render: (r) => (r.managed_by_app ? 'app' : h('span', { style: { color: 'var(--warn)' }, title: 'Nessuna pausa, rimborso o recupero automatico possibile' }, 'manuale ⚠')) },
+      { label: 'Su Twitch', render: (r) => (r.managed_by_app
+        ? h('span', { title: r.sync_error || '' }, r.sync_error ? `⚠ ${r.sync_error}` : (r.is_paused ? '⏸ in pausa' : '▶ riscattabile'))
+        : '—') },
       { label: 'Verifica', render: (r) => (r.verify_status === 'ok' ? '✅' : r.verify_status === 'missing' ? '❌ non trovata' : '—') },
       { label: 'Attiva', render: (r) => h('input', { type: 'checkbox', checked: !!r.is_enabled, onchange: async (e) => { await act(() => patch(`/api/admin/twitch/rewards/${r.id}`, { isEnabled: e.target.checked }), 'Aggiornato'); } }) },
       { label: '', render: (r) => h('button', { class: 'btn sm danger', onclick: async () => {

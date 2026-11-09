@@ -48,6 +48,14 @@ export const GAME_DEFAULTS = {
     pollIntervalS: 60,
     offlineConfirmations: 2, // controlli API consecutivi "offline" prima di chiudere la diretta
   },
+  rewards: {
+    // Mette in pausa su Twitch le ricompense create dall'app quando il gioco non è
+    // attivo (offline, disconnessione, errore) e le riattiva quando torna LIVE.
+    autoPause: true,
+    // Recupera i riscatti rimasti in coda (UNFULFILLED) dopo una disconnessione.
+    reconcileEnabled: true,
+    reconcileIntervalS: 300,
+  },
 };
 
 export const ADMIN_DEFAULTS = {
@@ -55,6 +63,11 @@ export const ADMIN_DEFAULTS = {
   backup: { autoEnabled: true, hour: 4, keep: 14 },
   twitch: { channelLogin: '', useSeparateBot: false },
   demo: { enabled: false },
+  security: {
+    adminHosts: [], // hostname dedicati alla dashboard (vuoto = qualsiasi host)
+    bindSessionIp: true, // la sessione vale solo dall'indirizzo IP del login
+    idleTimeoutH: 12, // chiusura della sessione dopo N ore di inattività
+  },
 };
 
 export const OVERLAY_DEFAULTS = {

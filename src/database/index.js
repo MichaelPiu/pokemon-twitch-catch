@@ -95,6 +95,13 @@ export class Database {
     return pending.map((m) => m.id);
   }
 
+  pendingMigrations() {
+    const has = this.get("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'");
+    if (!has) return migrations.map((m) => m.id);
+    const applied = new Set(this.all('SELECT id FROM schema_migrations').map((r) => r.id));
+    return migrations.filter((m) => !applied.has(m.id)).map((m) => m.id);
+  }
+
   schemaVersion() {
     return this.get('SELECT MAX(id) AS v FROM schema_migrations')?.v ?? 0;
   }

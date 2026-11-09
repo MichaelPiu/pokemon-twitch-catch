@@ -86,6 +86,35 @@ export class RewardsService {
     return this.db.get('SELECT * FROM twitch_rewards WHERE id = ?', id);
   }
 
+  // Pausa/riattivazione su Twitch delle ricompense create dall'app.
+  // Le ricompense collegate manualmente non possono essere modificate tramite API
+  // (Twitch lo consente solo per quelle create con lo stesso Client ID).
+  async syncPause(paused, { force = false } = {}) {
+    const bid = this.creds.getToken('broadcaster')?.userId;
+    const out = { changed: 0, failed: 0, skipped: 0 };
+    if (!bid) return out;
+    for (const rw of this.db.all('SELECT * FROM twitch_rewards WHERE managed_by_app = 1')) {
+      if (!force && !!rw.is_paused === paused && !rw.sync_error) { out.skipped++; continue; }
+      try {
+        await this.helix.updateReward(bid, rw.reward_id, { is_paused: paused });
+        this.db.run('UPDATE twitch_rewards SET is_paused = ?, pause_synced_at = ?, sync_error = NULL WHERE id = ?', paused ? 1 : 0, nowIso(), rw.id);
+        out.changed++;
+      } catch (e) {
+        const msg = e.status === 403 ? 'Twitch non consente di modificare questa ricompensa (non creata dall\'app)' : (e.message || 'errore').slice(0, 300);
+        this.db.run('UPDATE twitch_rewards SET sync_error = ? WHERE id = ?', msg, rw.id);
+        this.log.warn(`${paused ? 'Pausa' : 'Riattivazione'} ricompensa non riuscita: ${rw.title}`, { http: e.status, message: msg });
+        out.failed++;
+      }
+    }
+    if (out.changed) this.log.info(`Ricompense ${paused ? 'messe in pausa' : 'riattivate'} su Twitch: ${out.changed}`);
+    return out;
+  }
+
+  // Serve una sincronizzazione (stato diverso da quello desiderato o errore precedente)?
+  needsPauseSync(paused) {
+    return !!this.db.get('SELECT id FROM twitch_rewards WHERE managed_by_app = 1 AND (is_paused != ? OR sync_error IS NOT NULL) LIMIT 1', paused ? 1 : 0);
+  }
+
   remove(id) {
     this.db.run('DELETE FROM twitch_rewards WHERE id = ?', id);
   }
@@ -100,8 +129,9 @@ export class RewardsService {
       const rem = byId.get(local.reward_id);
       const status = rem ? 'ok' : 'missing';
       this.db.run(
-        'UPDATE twitch_rewards SET verify_status = ?, last_verified_at = ?, title = COALESCE(?, title), cost = COALESCE(?, cost), managed_by_app = ? WHERE id = ?',
-        status, nowIso(), rem?.title ?? null, rem?.cost ?? null, manageable.has(local.reward_id) ? 1 : 0, local.id);
+        'UPDATE twitch_rewards SET verify_status = ?, last_verified_at = ?, title = COALESCE(?, title), cost = COALESCE(?, cost), managed_by_app = ?, is_paused = COALESCE(?, is_paused) WHERE id = ?',
+        status, nowIso(), rem?.title ?? null, rem?.cost ?? null, manageable.has(local.reward_id) ? 1 : 0,
+        rem ? (rem.is_paused ? 1 : 0) : null, local.id);
       results.push({ id: local.id, rewardId: local.reward_id, status, title: rem?.title || local.title, remoteEnabled: rem?.is_enabled ?? null });
     }
     return results;

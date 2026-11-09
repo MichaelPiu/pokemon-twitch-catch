@@ -12,6 +12,7 @@ import { listCommands } from '../commands/commands.js';
 import { periodStats, totals, topLists, recentCaptures, sessionDetail, sessionTimeline, activityFeed } from '../stats/stats.js';
 import { captureProbability } from '../capture/capture.js';
 import { randomToken } from '../security/crypto.js';
+import { validHostname, parseHost } from '../security/origin.js';
 
 const id = (x, name = 'ID') => v.num(x, { min: 1, int: true, name });
 
@@ -217,7 +218,7 @@ export function registerAdminRoutes(app) {
   r.get('/api/admin/settings/game', () => {
     const s = app.gameSettings;
     return { spawn: s.get('spawn'), rarityWeights: s.get('rarityWeights'), rarityCatchBase: s.get('rarityCatchBase'), shiny: s.get('shiny'),
-      capture: s.get('capture'), event: s.get('event'), lifecycle: s.get('lifecycle') };
+      capture: s.get('capture'), event: s.get('event'), lifecycle: s.get('lifecycle'), rewards: s.get('rewards') };
   });
 
   r.put('/api/admin/settings/game', async (ctx) => {
@@ -364,6 +365,47 @@ export function registerAdminRoutes(app) {
     return { ok: true };
   });
 
+  // --- Sicurezza ----------------------------------------------------------------
+  const securityView = (ctx) => {
+    const sec = app.adminSettings.get('security');
+    return {
+      ...sec,
+      adminHostsEffective: app.guard.adminHosts(),
+      adminHostsFromEnv: app.adminHostsFromEnv,
+      request: { host: ctx.req.headers.host || '', clientIp: ctx.ip, peer: ctx.req.socket.remoteAddress, https: app.secureRequest(ctx.req) },
+      proxy: app.proxy.info(),
+    };
+  };
+  r.get('/api/admin/security', (ctx) => securityView(ctx));
+  r.put('/api/admin/security', async (ctx) => {
+    const b = await readJson(ctx.req);
+    const cur = app.adminSettings.get('security');
+    const next = { ...cur };
+    if (b.adminHosts !== undefined) {
+      const list = (Array.isArray(b.adminHosts) ? b.adminHosts : String(b.adminHosts).split(','))
+        .map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+      if (list.length > 5) throw new HttpError(400, 'Puoi indicare al massimo 5 hostname');
+      for (const h of list) if (!validHostname(h)) throw new HttpError(400, `Hostname non valido: ${h} (senza http:// e senza porta)`);
+      if (app.adminHostsFromEnv) throw new HttpError(409, 'Gli hostname della dashboard sono impostati dalla variabile ADMIN_HOSTS');
+      const here = parseHost(ctx.req.headers.host)?.hostname;
+      if (list.length && !list.includes(here)) {
+        throw new HttpError(400, `Per evitare di restare chiuso fuori, apri prima la dashboard da uno degli hostname indicati (ora stai usando "${here}")`);
+      }
+      next.adminHosts = [...new Set(list)];
+    }
+    if (b.bindSessionIp !== undefined) next.bindSessionIp = v.bool(b.bindSessionIp);
+    if (b.idleTimeoutH !== undefined) next.idleTimeoutH = v.num(b.idleTimeoutH, { min: 1, max: 168, int: true, name: 'Ore di inattività' });
+    app.adminSettings.set('security', next);
+    let closed = 0;
+    // Attivando l'hostname dedicato si chiudono le altre sessioni (i cui cookie
+    // potrebbero essere stati creati sull'host condiviso).
+    if (next.adminHosts.length && JSON.stringify(next.adminHosts) !== JSON.stringify(cur.adminHosts || [])) {
+      closed = app.auth.closeOtherSessions(ctx.session.sessionId);
+    }
+    app.log.info('Impostazioni di sicurezza aggiornate', { adminHosts: next.adminHosts, bindSessionIp: next.bindSessionIp, closedSessions: closed });
+    return { ...securityView(ctx), closedSessions: closed };
+  });
+
   // --- Twitch --------------------------------------------------------------------
   r.get('/api/admin/twitch', () => ({
     credentials: app.credentials.publicView(),
@@ -488,6 +530,29 @@ export function registerAdminRoutes(app) {
       if (e instanceof HttpError) throw e;
       throw new HttpError(400, rewardError(e));
     }
+  });
+  // Riscatti: stato su Twitch, recupero di quelli rimasti in coda, pausa ricompense.
+  r.get('/api/admin/twitch/redemptions', () => ({
+    last: app.monitor.reconciler.last,
+    pending: app.monitor.reconciler.pending(),
+    recovered: app.monitor.reconciler.recentRecovered(),
+    rewardsPause: app.monitor.status().rewardsPause,
+    settings: app.gameSettings.get('rewards'),
+  }));
+  r.post('/api/admin/twitch/redemptions/reconcile', async () => {
+    if (!app.credentials.getToken('broadcaster')?.userId) throw new HttpError(400, 'Collega prima l\'account Twitch del canale');
+    return app.monitor.reconciler.run('manuale');
+  });
+  r.post('/api/admin/twitch/rewards/sync-pause', async () => {
+    await app.monitor.syncRewardPause({ force: true });
+    return { ...app.monitor.status().rewardsPause, rewards: app.rewards.list() };
+  });
+  r.get('/api/admin/settings/rewards', () => app.gameSettings.get('rewards'));
+  r.put('/api/admin/settings/rewards', async (ctx) => {
+    const out = validateGame({ rewards: await readJson(ctx.req) }, app.gameSettings);
+    app.gameSettings.set('rewards', out.rewards);
+    app.monitor.syncRewardPause();
+    return out.rewards;
   });
   r.delete('/api/admin/twitch/rewards/:id', (ctx) => { app.rewards.remove(id(ctx.params.id)); return { ok: true }; });
   r.post('/api/admin/twitch/rewards/verify', async () => {

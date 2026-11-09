@@ -39,7 +39,15 @@ export function loadConfig(env = process.env) {
     pokeapiBase: env.POKEAPI_BASE || 'https://pokeapi.co/api/v2',
     // Se "true" i cookie di sessione vengono marcati Secure (solo dietro HTTPS).
     secureCookies: env.SECURE_COOKIES === 'true',
-    trustProxy: env.TRUST_PROXY !== 'false',
+    // Proxy autorizzati a inoltrare X-Forwarded-For / X-Forwarded-Proto (vedi src/security/proxy.js).
+    // Vuoto = nessun proxy fidato: l'IP del client è sempre quello reale del socket.
+    trustedProxies: env.TRUSTED_PROXIES || '',
+    legacyTrustProxy: env.TRUST_PROXY, // non più usata: solo per avvisare nei log
+    // Hostname dedicati alla dashboard (separati da virgola). Se valorizzato ha la
+    // precedenza sull'impostazione salvata nella dashboard.
+    adminHosts: env.ADMIN_HOSTS || '',
+    // Origini aggiuntive ammesse per la dashboard (es. https://livecatch.example.lan).
+    allowedOrigins: env.ALLOWED_ORIGINS || '',
     logLevel: env.LOG_LEVEL || 'info',
     disableTimers: env.DISABLE_TIMERS === 'true',
   };

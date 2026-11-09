@@ -11,7 +11,9 @@ services:
       PROXY_AUTH_ADD: "false"
 
   web:
-    image: ghcr.io/michaelpiu/pokemon-twitch-catch:0.2.1
+    # Nello store pubblico l'immagine è fissata anche per digest (tag@sha256:…),
+    # scritto da scripts/publish-store.sh dopo la build del rilascio.
+    image: ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.1
     restart: on-failure
     init: true
     user: "1000:1000"
@@ -21,5 +23,11 @@ services:
       # Password del primo accesso (mostrata da Umbrel nelle credenziali dell'app).
       ADMIN_INITIAL_PASSWORD: ${APP_PASSWORD}
       TZ: Europe/Rome
+      # Proxy autorizzati a inoltrare l'IP reale del browser (X-Forwarded-For):
+      # - docker-gateway: umbrelOS 2.x, il gateway delle app gira sull'host e si
+      #   collega al container dal gateway della rete Docker;
+      # - piu-live-catch_app_proxy_1: umbrelOS 1.x, sidecar app_proxy.
+      # Ogni altro mittente viene ignorato (nessun bypass del limite di login).
+      TRUSTED_PROXIES: "docker-gateway,piu-live-catch_app_proxy_1"
     volumes:
       - ${APP_DATA_DIR}/data:/data

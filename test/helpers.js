@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
+import { request as httpRequest } from 'node:http';
 import { loadConfig } from '../src/config.js';
 import { App } from '../src/app.js';
 import { Logger } from '../src/logger.js';
@@ -35,6 +36,13 @@ export class FakeTwitch {
     this.rewards = [];
     this.helixDown = false;
     this.tokenValid = true;
+    // Coda dei riscatti su Twitch (per la riconciliazione): { id, reward:{id}, status:'UNFULFILLED', ... }
+    this.queue = [];
+    this.rewardPatches = [];
+    this.failRewardPatch = 0; // numero di PATCH ricompensa che falliscono (500)
+    this.failRedemptionUpdates = 0; // numero di PATCH riscatto che falliscono (500)
+    this.goneRedemptions = new Set(); // id per cui Twitch risponde 404
+    this.foreignRewards = new Set(); // ricompense non create da questo Client ID (403)
     this.calls = [];
     this.fetch = this.fetch.bind(this);
   }
@@ -55,7 +63,29 @@ export class FakeTwitch {
     if (p === '/streams') return res(200, { data: this.live ? [{ id: this.live.id, title: this.live.title || 'Live', started_at: this.live.started_at || new Date().toISOString(), type: 'live' }] : [] });
     if (p === '/eventsub/subscriptions' && method === 'POST') { this.subscriptions.push(body); return res(202, { data: [{ id: `sub${this.subscriptions.length}`, status: 'enabled', type: body.type }] }); }
     if (p === '/chat/messages') { this.chat.push(body); return res(200, { data: [{ message_id: 'm', is_sent: true }] }); }
-    if (p === '/channel_points/custom_rewards/redemptions') { this.redemptionUpdates.push({ id: u.searchParams.get('id'), status: body.status }); return res(200, { data: [] }); }
+    if (p === '/channel_points/custom_rewards/redemptions' && method === 'GET') {
+      const rid = u.searchParams.get('reward_id');
+      if (this.foreignRewards.has(rid)) return res(403, { message: 'The ID in header must match the client ID' });
+      const st = u.searchParams.get('status');
+      return res(200, { data: this.queue.filter((r) => r.reward.id === rid && r.status === st), pagination: {} });
+    }
+    if (p === '/channel_points/custom_rewards/redemptions' && method === 'PATCH') {
+      const id = u.searchParams.get('id');
+      if (this.failRedemptionUpdates > 0) { this.failRedemptionUpdates--; return res(500, { message: 'Internal Server Error' }); }
+      if (this.goneRedemptions.has(id)) return res(404, { message: 'redemption not found' });
+      if (this.foreignRewards.has(u.searchParams.get('reward_id'))) return res(403, { message: 'forbidden' });
+      this.redemptionUpdates.push({ id, status: body.status });
+      const q = this.queue.find((r) => r.id === id);
+      if (q) q.status = body.status;
+      return res(200, { data: [{ id, status: body.status }] });
+    }
+    if (p === '/channel_points/custom_rewards' && method === 'PATCH') {
+      const id = u.searchParams.get('id');
+      if (this.failRewardPatch > 0) { this.failRewardPatch--; return res(500, { message: 'Internal Server Error' }); }
+      if (this.foreignRewards.has(id)) return res(403, { message: 'forbidden' });
+      this.rewardPatches.push({ id, ...body });
+      return res(200, { data: [{ id, ...body }] });
+    }
     if (p === '/channel_points/custom_rewards' && method === 'GET') return res(200, { data: this.rewards });
     if (p === '/channel_points/custom_rewards' && method === 'POST') {
       const r = { id: `00000000-0000-0000-0000-${String(this.rewards.length + 1).padStart(12, '0')}`, title: body.title, cost: body.cost, is_enabled: true };
@@ -111,7 +141,7 @@ export function seqRng(values = []) {
   return fn;
 }
 
-export async function makeApp({ dir = tempDir(), twitch = null, eventsub = null, configureTwitch = true, rng = null } = {}) {
+export async function makeApp({ dir = tempDir(), twitch = null, eventsub = null, configureTwitch = true, rng = null, env = {} } = {}) {
   const config = loadConfig({
     DATA_DIR: dir,
     ADMIN_INITIAL_PASSWORD: 'initialpass123',
@@ -120,6 +150,7 @@ export async function makeApp({ dir = tempDir(), twitch = null, eventsub = null,
     TWITCH_EVENTSUB_URL: eventsub?.url || 'ws://127.0.0.1:1',
     TWITCH_EVENTSUB_BACKOFF_MS: '30',
     POKEAPI_BASE: 'http://pokeapi.test/api/v2',
+    ...env,
   });
   const app = new App(config, {
     fetchImpl: twitch?.fetch || (async () => { throw new Error('rete disabilitata nei test'); }),
@@ -163,9 +194,38 @@ export function linkReward(app, ballCode = 'pokeball', rewardId = '11111111-1111
   return { rewardId, ball };
 }
 
+// Riscatto nel formato delle API Helix (GET .../redemptions), messo in coda sul finto Twitch.
+export function queuedRedemption(opts) {
+  return { ...redemption({ ...opts, status: 'UNFULFILLED' }) };
+}
+
 export function redemption({ id, rewardId, userId = '2001', login = 'mario', name = 'Mario', redeemedAt = new Date().toISOString(), status = 'unfulfilled' }) {
   return {
     id, broadcaster_user_id: BROADCASTER_ID, user_id: userId, user_login: login, user_name: name, user_input: '', status,
     reward: { id: rewardId, title: 'Lancia', cost: 100, prompt: '' }, redeemed_at: redeemedAt,
   };
+}
+
+// Richiesta HTTP di basso livello: permette di impostare liberamente Host,
+// Origin, User-Agent e X-Forwarded-* (fetch non consente di cambiare Host).
+export function rawRequest(port, { method = 'GET', path = '/', headers = {}, body = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const data = body == null ? null : (typeof body === 'string' ? body : JSON.stringify(body));
+    const req = httpRequest({
+      host: '127.0.0.1', port, method, path,
+      headers: { ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}), ...headers },
+    }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { text += c; });
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(text); } catch { /* non JSON */ }
+        resolve({ status: res.statusCode, headers: res.headers, text, data: json });
+      });
+    });
+    req.on('error', reject);
+    if (data) req.write(data);
+    req.end();
+  });
 }

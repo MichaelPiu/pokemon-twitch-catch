@@ -260,10 +260,10 @@ export class GameEngine extends EventEmitter {
   }
 
   // --- Catture ---------------------------------------------------------------
-  attempt({ redemptionId, rewardId, ballTypeId, user, redeemedAt, isDemo = false }) {
+  attempt({ redemptionId, rewardId, ballTypeId, user, redeemedAt, isDemo = false, source = 'eventsub' }) {
     const cfg = this.cfg();
     const res = processAttempt(this.db, cfg, {
-      redemptionId, rewardId, ballTypeId, user, redeemedAt, isDemo,
+      redemptionId, rewardId, ballTypeId, user, redeemedAt, isDemo, source,
       accepting: this.accepting(isDemo),
       sessionId: this.session?.id ?? null,
     }, this.rng);

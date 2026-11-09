@@ -1,0 +1,42 @@
+name: Verifica App Store Umbrel
+
+# Esegue il linter ufficiale di Umbrel (getumbrel/umbrel-apps, commit fissato)
+# con --check-images: verifica manifest e compose, che l'immagine sia fissata per
+# digest, scaricabile SENZA autenticazione e pubblicata per amd64 e arm64.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: getumbrel/umbrel-apps
+          ref: 091299452560b2def133616059be38478d04fe9a
+          path: .umbrel-apps
+          sparse-checkout: |
+            .tools
+            package.json
+            package-lock.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: npm ci --prefix .umbrel-apps --ignore-scripts
+      - name: Linter ufficiale Umbrel (con verifica immagini)
+        run: node .umbrel-apps/.tools/lint-apps.mjs --root "$GITHUB_WORKSPACE" --check-images --format github piu-live-catch
+      - name: Icona e manifest raggiungibili
+        run: |
+          set -e
+          icon=$(grep '^icon:' piu-live-catch/umbrel-app.yml | awk '{print $2}')
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$icon")
+          echo "Icona $icon → HTTP $code"
+          test "$code" = "200"

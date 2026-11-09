@@ -1,5 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { migrations } from '../src/database/migrations.js';
 import { makeApp, cleanup, seedPokemon, linkReward, FakeTwitch, FakeEventSub, waitFor, tempDir, seqRng } from './helpers.js';
 
 const user = { twitchId: '5001', login: 'luigi', displayName: 'Luigi' };
@@ -60,7 +61,8 @@ describe('Riavvio server e persistenza', () => {
       assert.ok(!raw.includes('"access"'), 'token cifrato');
       await app.close();
       ({ app } = await makeApp({ dir, configureTwitch: false }));
-      assert.equal(app.db.schemaVersion(), 1);
+      assert.equal(app.db.schemaVersion(), migrations.at(-1).id, 'schema all\'ultima versione');
+      assert.deepEqual(app.db.pendingMigrations(), [], 'nessuna migrazione rimasta da applicare');
       assert.equal(app.credentials.clientSecret, 'testsecret000000');
       await app.close();
     } finally { cleanup(dir); }

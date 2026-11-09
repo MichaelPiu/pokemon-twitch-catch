@@ -115,9 +115,10 @@ describe('HTTP: autenticazione, sicurezza, pagine', () => {
   });
 
   test('WebSocket admin rifiuta connessioni non autenticate', async () => {
-    const ws = new WebSocket(base.replace('http', 'ws') + '/ws/admin');
+    // Origin corretto (stessa origine della dashboard) ma nessun cookie: 401.
+    const ws = new WebSocket(base.replace('http', 'ws') + '/ws/admin', { headers: { Origin: base } });
     const err = await new Promise((resolve) => { ws.on('unexpected-response', (_q, res) => resolve(res.statusCode)); ws.on('error', () => resolve('error')); });
-    assert.ok(err === 401 || err === 'error');
+    assert.equal(err, 401);
   });
 
   test('pagine pubbliche servite e disattivabili; path traversal bloccato', async () => {

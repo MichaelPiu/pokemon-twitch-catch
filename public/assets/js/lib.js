@@ -47,6 +47,10 @@ export async function api(method, path, body, { raw = false } = {}) {
   if (raw) return res;
   let data = null;
   try { data = await res.json(); } catch { /* vuoto */ }
+  if (res.status === 421 && data?.details?.adminUrl) {
+    // Dashboard aperta da un host diverso da quello dedicato: reindirizza.
+    location.href = data.details.adminUrl;
+  }
   if (!res.ok) {
     const err = new ApiError(res.status, data?.error || `Errore ${res.status}`, data?.details);
     err.path = path;

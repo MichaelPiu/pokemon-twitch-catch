@@ -13,6 +13,23 @@ function stamp(d = new Date()) {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+// Copia del database prima di applicare nuove migrazioni (aggiornamento dell'app).
+export function preMigrationBackup(db, dir, fromVersion) {
+  mkdirSync(dir, { recursive: true });
+  let name = `livecatch-${stamp()}-pre-migration.sqlite.gz`;
+  for (let i = 1; existsSync(join(dir, name)); i++) name = `livecatch-${stamp()}-pre-migration-${i}.sqlite.gz`;
+  const tmp = join(dir, `.tmp-premig-${process.pid}-${Date.now()}.sqlite`);
+  try {
+    db.prepare('VACUUM INTO ?').run(tmp);
+    writeFileSync(join(dir, name), gzipSync(readFileSync(tmp), { level: 6 }));
+  } finally {
+    if (existsSync(tmp)) unlinkSync(tmp);
+  }
+  db.run('INSERT INTO backup_history (filename, kind, size_bytes, note) VALUES (?, ?, ?, ?)',
+    name, 'pre-migration', statSync(join(dir, name)).size, `schema v${fromVersion} prima dell'aggiornamento`);
+  return name;
+}
+
 export class BackupService {
   constructor({ db, config, adminSettings, log }) {
     this.db = db;

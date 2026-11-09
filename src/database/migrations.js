@@ -248,4 +248,26 @@ CREATE TABLE state_transitions (
 );
 `,
   },
+  {
+    id: 2,
+    name: 'sicurezza_sessioni_e_riconciliazione_ricompense',
+    sql: `
+-- Sessioni: ultimo utilizzo (scadenza per inattività).
+ALTER TABLE admin_sessions ADD COLUMN last_seen_at TEXT;
+
+-- Ricompense: stato di pausa sincronizzato con Twitch ed eventuale errore.
+ALTER TABLE twitch_rewards ADD COLUMN is_paused INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE twitch_rewards ADD COLUMN pause_synced_at TEXT;
+ALTER TABLE twitch_rewards ADD COLUMN sync_error TEXT;
+
+-- Tentativi: origine (eventsub/recuperato/demo) e aggiornamento dello stato della
+-- riscossione su Twitch con tentativi ripetuti in caso di errore.
+ALTER TABLE capture_attempts ADD COLUMN source TEXT NOT NULL DEFAULT 'eventsub';
+ALTER TABLE capture_attempts ADD COLUMN desired_status TEXT;
+ALTER TABLE capture_attempts ADD COLUMN status_error TEXT;
+ALTER TABLE capture_attempts ADD COLUMN status_tries INTEGER NOT NULL DEFAULT 0;
+UPDATE capture_attempts SET source = 'demo' WHERE is_demo = 1;
+CREATE INDEX idx_attempts_pending_status ON capture_attempts(desired_status) WHERE desired_status IS NOT NULL;
+`,
+  },
 ];

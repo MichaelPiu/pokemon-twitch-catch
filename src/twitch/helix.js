@@ -105,6 +105,14 @@ export class Helix {
     return r?.data?.[0];
   }
 
+  // Riscatti di una ricompensa (solo ricompense create con questo Client ID).
+  async getRedemptions(broadcasterId, rewardId, { status = 'UNFULFILLED', after, first = 50 } = {}) {
+    const r = await this.request('GET', '/channel_points/custom_rewards/redemptions', {
+      query: { broadcaster_id: broadcasterId, reward_id: rewardId, status, sort: 'OLDEST', first, after },
+    });
+    return { data: r?.data || [], cursor: r?.pagination?.cursor || null };
+  }
+
   async updateRedemption(broadcasterId, rewardId, redemptionId, status) {
     return this.request('PATCH', '/channel_points/custom_rewards/redemptions', {
       query: { broadcaster_id: broadcasterId, reward_id: rewardId, id: redemptionId },

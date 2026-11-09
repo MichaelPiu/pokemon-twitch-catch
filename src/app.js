@@ -9,6 +9,8 @@ import { GAME_DEFAULTS, ADMIN_DEFAULTS, OVERLAY_DEFAULTS, COMMAND_GLOBAL_DEFAULT
 import { loadSecretKey, SecretBox } from './security/crypto.js';
 import { AuthService, SESSION_COOKIE } from './security/auth.js';
 import { RateLimiter } from './security/rateLimit.js';
+import { ProxyTrust } from './security/proxy.js';
+import { RequestGuard, parseList } from './security/origin.js';
 import { Router, HttpError, sendJson, parseCookies } from './http/router.js';
 import { WsHub } from './websocket/hub.js';
 import { StateMachine, STATES } from './game_engine/stateMachine.js';
@@ -21,7 +23,7 @@ import { ChatSender } from './twitch/chat.js';
 import { RewardsService } from './twitch/rewards.js';
 import { TwitchMonitor } from './twitch/monitor.js';
 import { PokemonImporter } from './pokemon_data/importer.js';
-import { BackupService } from './backup/backup.js';
+import { BackupService, preMigrationBackup } from './backup/backup.js';
 import { registerAuthRoutes } from './api/auth.js';
 import { registerAdminRoutes } from './api/admin.js';
 import { registerPublicRoutes } from './api/public.js';
@@ -50,6 +52,11 @@ export class App {
     this.db = new Database(c.dbPath);
     const isNew = !this.db.get("SELECT name FROM sqlite_master WHERE name = 'schema_migrations'");
     this.backups = null;
+    // Prima di aggiornare lo schema di un database esistente ne salva una copia.
+    if (!isNew && this.db.pendingMigrations().length) {
+      const f = preMigrationBackup(this.db, c.backupsDir, this.db.schemaVersion());
+      this.log.info(`Backup di sicurezza prima dell'aggiornamento dello schema: ${f}`);
+    }
     const applied = this.db.migrate();
     if (applied.length) this.log.info(`Migrazioni applicate: ${applied.join(', ')}${isNew ? ' (nuovo database)' : ''}`);
     this.seed();
@@ -60,9 +67,27 @@ export class App {
 
     this.box = new SecretBox(loadSecretKey(join(c.dataDir, 'secret.key'), c.secretKey));
     this.auth = new AuthService({ db: this.db, dataDir: c.dataDir, log: this.logger.child('auth'), initialPassword: c.adminInitialPassword });
-    await this.auth.ensureAdmin();
+    const adminInit = await this.auth.ensureAdmin();
+    if (adminInit.reset) {
+      // Recupero accesso: rimuove anche l'eventuale hostname dedicato, che potrebbe essere la causa del blocco.
+      this.adminSettings.set('security', { ...this.adminSettings.get('security'), adminHosts: [] });
+    }
 
-    this.hub = new WsHub({ auth: this.auth, log: this.logger.child('ws') });
+    // Sicurezza delle richieste: proxy fidati e controlli Host/Origin.
+    this.proxy = new ProxyTrust({ spec: c.trustedProxies, log: this.logger.child('security') });
+    await this.proxy.start();
+    if (c.legacyTrustProxy !== undefined && c.legacyTrustProxy !== '') {
+      this.log.warn('TRUST_PROXY non è più supportata e viene ignorata: usa TRUSTED_PROXIES con gli indirizzi dei proxy autorizzati');
+    }
+    if (this.proxy.enabled) this.log.info(`Proxy fidati: ${this.proxy.info().entries.join(', ')}`);
+    const envAdminHosts = parseList(c.adminHosts);
+    this.guard = new RequestGuard({
+      getAdminHosts: () => (envAdminHosts.length ? envAdminHosts : this.adminSettings.get('security').adminHosts || []),
+      allowedOrigins: parseList(c.allowedOrigins),
+    });
+    this.adminHostsFromEnv = envAdminHosts.length > 0;
+
+    this.hub = new WsHub({ authorizeAdmin: (req) => this.authorizeAdminSocket(req), log: this.logger.child('ws') });
     this.sm = new StateMachine({ db: this.db, log: this.logger.child('lifecycle') });
     this.engine = new GameEngine({ db: this.db, gameSettings: this.gameSettings, hub: this.hub, log: this.logger.child('game'), timers: this.timers, ...(this.rng ? { rng: this.rng } : {}) });
     this.engine.recoverAfterRestart();
@@ -74,6 +99,7 @@ export class App {
     this.chat = new ChatSender({ helix: this.helix, credentials: this.credentials, log: this.logger.child('chat'), getLimits: () => this.gameSettings.get('commands') });
     this.rewards = new RewardsService({ db: this.db, helix: this.helix, credentials: this.credentials, log: this.logger.child('rewards') });
     this.monitor = new TwitchMonitor({
+      rewards: this.rewards,
       config: c, db: this.db, credentials: this.credentials, helix: this.helix, oauth: this.oauth, sm: this.sm,
       engine: this.engine, commands: this.commands, chat: this.chat, gameSettings: this.gameSettings, hub: this.hub,
       log: this.logger.child('twitch'), WebSocketImpl: this.WebSocketImpl, timers: this.timers,
@@ -91,6 +117,8 @@ export class App {
 
     this.apiLimiter = new RateLimiter({ max: 600, windowMs: 60000 });
     this.loginLimiter = new RateLimiter({ max: 10, windowMs: 15 * 60000 });
+    // Limite per account indipendente dall'IP: protegge anche se l'IP venisse falsificato.
+    this.loginFailLimiter = new RateLimiter({ max: 30, windowMs: 15 * 60000 });
     this.router = new Router();
     registerAuthRoutes(this);
     registerAdminRoutes(this);
@@ -130,11 +158,34 @@ export class App {
 
   // --- HTTP ------------------------------------------------------------------
   clientIp(req) {
-    if (this.config.trustProxy) {
-      const xf = req.headers['x-forwarded-for'];
-      if (xf) return String(xf).split(',')[0].trim();
+    return this.proxy.clientIp(req);
+  }
+
+  secureRequest(req) {
+    return this.config.secureCookies || this.proxy.isHttps(req);
+  }
+
+  // Sessione amministratore della richiesta, con i vincoli configurati.
+  sessionFor(req, token, { websocket = false } = {}) {
+    const sec = this.adminSettings.get('security');
+    return this.auth.resolve(token, {
+      userAgent: req.headers['user-agent'] || '',
+      ip: !websocket && sec.bindSessionIp ? this.clientIp(req) : null,
+      idleMs: Math.max(0, Number(sec.idleTimeoutH) || 0) * 3600 * 1000,
+    });
+  }
+
+  // Autorizzazione del WebSocket admin: host ammesso, Origin obbligatorio e uguale
+  // all'host della dashboard, sessione valida per questo browser.
+  authorizeAdminSocket(req) {
+    if (!this.guard.hostAllowed(req)) return { ok: false, status: 421, reason: 'host non ammesso' };
+    if (!this.guard.originAllowed(req, { required: true })) {
+      this.logger.child('security').warn('WebSocket admin rifiutato: origine non consentita', { origin: String(req.headers.origin || '(assente)').slice(0, 100) });
+      return { ok: false, status: 403, reason: 'origine non consentita' };
     }
-    return req.socket.remoteAddress || 'unknown';
+    const session = this.sessionFor(req, parseCookies(req.headers.cookie)[SESSION_COOKIE], { websocket: true });
+    if (!session || session.mustChangePassword) return { ok: false, status: 401, reason: 'sessione non valida' };
+    return { ok: true, session };
   }
 
   securityHeaders(res, { frame = 'SAMEORIGIN' } = {}) {
@@ -179,8 +230,18 @@ export class App {
     const { route, params } = m;
     const cookies = parseCookies(req.headers.cookie);
     const ctx = { req, res, url, params, query: url.searchParams, ip, cookies, session: null };
+    const adminArea = url.pathname.startsWith('/api/admin/') || url.pathname.startsWith('/api/auth/');
+    if (adminArea) {
+      if (!this.guard.hostAllowed(req)) {
+        throw new HttpError(421, 'La dashboard è raggiungibile solo dall\'hostname dedicato', { adminUrl: this.guard.dedicatedUrl(req) });
+      }
+      if (req.method !== 'GET' && req.method !== 'HEAD' && !this.guard.originAllowed(req)) {
+        this.logger.child('security').warn('Richiesta admin rifiutata: origine non consentita', { path: url.pathname, origin: String(req.headers.origin || '').slice(0, 100) });
+        throw new HttpError(403, 'Origine della richiesta non consentita');
+      }
+    }
     if (!route.opts.public) {
-      ctx.session = this.auth.resolve(cookies[SESSION_COOKIE]);
+      ctx.session = this.sessionFor(req, cookies[SESSION_COOKIE]);
       if (!ctx.session) throw new HttpError(401, 'Accesso richiesto');
       if (ctx.session.mustChangePassword && !route.opts.allowPasswordChange) throw new HttpError(403, 'Devi cambiare la password prima di continuare', { mustChangePassword: true });
       if (req.method !== 'GET' && !this.auth.checkCsrf(ctx.session, req.headers['x-csrf-token'])) throw new HttpError(403, 'Token CSRF non valido');
@@ -196,7 +257,10 @@ export class App {
     const pub = this.adminSettings.get('publicPages');
     const page = (file, opts) => this.sendFile(req, res, join(this.config.publicDir, file), opts);
     if (path === '/' ) return pub.landing ? page('index.html') : page('disabled.html', { status: 404 });
-    if (path === '/admin' || path.startsWith('/admin/')) return page('admin/index.html', { noStore: true, frame: 'DENY' });
+    if (path === '/admin' || path.startsWith('/admin/')) {
+      if (!this.guard.hostAllowed(req)) return this.misdirected(res, this.guard.dedicatedUrl(req));
+      return page('admin/index.html', { noStore: true, frame: 'DENY' });
+    }
     if (path === '/overlay' || path === '/overlay/') return page('overlay/index.html', { noStore: true, frame: null });
     if (path === '/leaderboard') return pub.leaderboard ? page('leaderboard.html') : page('disabled.html', { status: 404 });
     if (/^\/pokedex\/[A-Za-z0-9_]{1,25}\/?$/.test(path)) return pub.pokedex ? page('pokedex.html') : page('disabled.html', { status: 404 });
@@ -212,6 +276,17 @@ export class App {
       return this.sendFile(req, res, full, { cache: 'no-cache' });
     }
     return this.notFound(res);
+  }
+
+  // Pagina mostrata aprendo la dashboard da un host diverso da quello dedicato.
+  misdirected(res, url) {
+    this.securityHeaders(res, { frame: 'DENY' });
+    const safe = String(url || '').replace(/[^a-zA-Z0-9:/._-]/g, '');
+    res.writeHead(421, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(`<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Live Catch</title><link rel="stylesheet" href="/assets/css/base.css"></head>`
+      + `<body style="display:grid;place-items:center;min-height:100vh;font-family:system-ui"><div style="max-width:520px;padding:24px">`
+      + `<h1>Indirizzo della dashboard</h1><p>Per sicurezza la dashboard di Live Catch è raggiungibile solo da un indirizzo dedicato.</p>`
+      + `<p><a href="${safe}">${safe}</a></p><p style="opacity:.7">Overlay e pagine pubbliche restano disponibili anche da questo indirizzo.</p></div></body></html>`);
   }
 
   notFound(res) {
@@ -276,6 +351,7 @@ export class App {
 
   async close() {
     clearInterval(this.pruneTimer);
+    this.proxy?.stop();
     this.monitor?.stop();
     this.engine?.shutdown();
     this.backups?.stop();

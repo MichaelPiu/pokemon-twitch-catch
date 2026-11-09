@@ -6,6 +6,7 @@ import { nowIso } from '../database/index.js';
 
 export const SESSION_COOKIE = 'lc_session';
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
+export const DEFAULT_IDLE_MS = 12 * 3600 * 1000;
 
 export class AuthService {
   constructor({ db, dataDir, log, initialPassword }) {
@@ -60,24 +61,50 @@ export class AuthService {
     const csrf = randomToken(24);
     const expires = new Date(Date.now() + SESSION_TTL_MS).toISOString();
     this.db.run(
-      'INSERT INTO admin_sessions (token_hash, csrf_token, admin_user_id, expires_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
-      sha256(token), csrf, user.id, expires, meta.ip || null, String(meta.userAgent || '').slice(0, 200),
+      'INSERT INTO admin_sessions (token_hash, csrf_token, admin_user_id, expires_at, ip, user_agent, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      sha256(token), csrf, user.id, expires, meta.ip || null, String(meta.userAgent || '').slice(0, 200), nowIso(),
     );
     this.db.run('UPDATE admin_users SET last_login_at = ? WHERE id = ?', nowIso(), user.id);
     this.db.run('DELETE FROM admin_sessions WHERE expires_at < ?', nowIso());
     return { token, csrf, expires, mustChangePassword: !!user.must_change_password, username: user.username };
   }
 
-  resolve(token) {
+  // Risolve una sessione dal cookie. Oltre alla scadenza assoluta controlla:
+  // - inattività (idleMs): sessione chiusa se non usata da troppo tempo;
+  // - User-Agent: deve coincidere con quello del login;
+  // - IP del client (se bind.ip è valorizzato): deve coincidere con quello del login.
+  //   Un cookie sottratto da un'altra app sullo stesso server (che lo riceverebbe
+  //   perché i cookie non sono isolati per porta) non è riutilizzabile da un altro
+  //   indirizzo. Il WebSocket non passa l'IP: dietro al gateway di umbrelOS gli
+  //   header inoltrati dell'upgrade non sono affidabili.
+  resolve(token, bind = {}) {
     if (!token) return null;
     const row = this.db.get(
-      `SELECT s.id, s.csrf_token, s.expires_at, u.id AS user_id, u.username, u.must_change_password
+      `SELECT s.id, s.csrf_token, s.expires_at, s.ip, s.user_agent, s.last_seen_at, s.created_at,
+              u.id AS user_id, u.username, u.must_change_password
        FROM admin_sessions s JOIN admin_users u ON u.id = s.admin_user_id WHERE s.token_hash = ?`, sha256(token));
     if (!row) return null;
-    if (row.expires_at < nowIso()) {
+    const now = nowIso();
+    if (row.expires_at < now) {
       this.db.run('DELETE FROM admin_sessions WHERE id = ?', row.id);
       return null;
     }
+    const idleMs = bind.idleMs ?? DEFAULT_IDLE_MS;
+    const lastSeen = Date.parse(row.last_seen_at || row.created_at);
+    if (idleMs > 0 && Date.now() - lastSeen > idleMs) {
+      this.db.run('DELETE FROM admin_sessions WHERE id = ?', row.id);
+      this.log.info('Sessione amministratore chiusa per inattività');
+      return null;
+    }
+    if (bind.userAgent !== undefined && String(bind.userAgent || '').slice(0, 200) !== String(row.user_agent || '')) {
+      this.log.warn('Cookie di sessione presentato da un browser diverso: rifiutato');
+      return null;
+    }
+    if (bind.ip && row.ip && bind.ip !== row.ip) {
+      this.log.warn('Cookie di sessione presentato da un indirizzo diverso: rifiutato', { ip: bind.ip });
+      return null;
+    }
+    if (Date.now() - lastSeen > 60_000) this.db.run('UPDATE admin_sessions SET last_seen_at = ? WHERE id = ?', now, row.id);
     return {
       sessionId: row.id,
       userId: row.user_id,
@@ -85,6 +112,11 @@ export class AuthService {
       csrf: row.csrf_token,
       mustChangePassword: !!row.must_change_password,
     };
+  }
+
+  // Chiude tutte le sessioni tranne quella indicata (es. dopo aver attivato l'hostname dedicato).
+  closeOtherSessions(keepSessionId) {
+    return this.db.run('DELETE FROM admin_sessions WHERE id != ?', keepSessionId ?? -1).changes;
   }
 
   checkCsrf(session, header) {
