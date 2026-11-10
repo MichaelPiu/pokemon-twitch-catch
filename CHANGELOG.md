@@ -1,10 +1,18 @@
 # Changelog
 
-## Non pubblicata — Effetti sonori per OBS
+## 1.0.0 — prima versione stabile
 
-Sviluppata nel ramo `feature/leaderboard`. **Non è una release**: nessun tag, nessuna immagine, store invariato.
+Pubblicata il 10 novembre 2026: tag `v1.0.0`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0` (`linux/amd64`, `linux/arm64`), store Umbrel aggiornato.
 
-### Novità
+### Aggiornamento dalla 1.0.0-rc.3
+- Il database passa dallo schema v3 al v5 (migrazioni 4 e 5). Prima della migrazione l'app crea da sola il backup `…-pre-migration.sqlite.gz`. Dati, catture, giocatori, temi, impostazioni e credenziali Twitch restano invariati; le catture esistenti entrano nelle classifiche come *storiche*.
+- In OBS non serve una nuova sorgente: gli effetti sonori li riproduce la sorgente `/overlay` già configurata (attiva *Controlla l'audio tramite OBS*). I file audio si copiano a mano in `data/audio`.
+- Verifiche prima della pubblicazione: 266/266 test su Node 24.22.2 e 26.13.0; aggiornamento da un database creato con il codice della rc.3 (backup `pre-migration` identico all'originale, nessun dato o impostazione persi); backup locale e di rete ripristinati su un'installazione con `secret.key` diversa (HTTP 200, Twitch scollegato con avviso, credenziali cifrate intatte). **Non verificati**: installazione e aggiornamento su un vero Umbrel, Twitch reale, overlay e audio dentro OBS.
+
+### Effetti sonori per OBS
+
+
+#### Novità
 - Suono a ogni nuovo spawn (casuale dalla lista senza ripetere l'ultimo, oppure fisso) e musica di conferma a ogni cattura riuscita.
 - **Una sola Browser Source**: i suoni li riproduce l'overlay principale `/overlay`, la stessa sorgente della grafica (HTML5 Audio, riconnessione automatica, diagnostica con `?debug=1`, pulsante *Sblocca audio*). Nessuna pagina `/overlay/audio` e nessuna seconda sorgente in OBS.
 - L'audio parte solo nella Browser Source di OBS (riconosciuta da `window.obsstudio`) o con `?audio=1`; `?audio=0` lo disattiva. Anteprima della dashboard (`?preview=1`, iframe) e browser normale restano muti e non si collegano al canale audio.
@@ -14,23 +22,22 @@ Sviluppata nel ramo `feature/leaderboard`. **Non è una release**: nessun tag, n
 - Eventi legati al motore di gioco (eventi `spawn` e `attempt` già esistenti): un ID univoco per spawn e per tentativo, deduplicazione nel server e nell'overlay, nessun evento passato dopo una riconnessione, eventi in ritardo oltre 10 s scartati secondo l'ora del server. Nessun suono per lanci falliti o rifiutati, riscatti duplicati, catture già annullate, DEMO (salvo opzione). Un errore audio non blocca mai il gioco.
 - Impostazioni nel database (`admin_settings.audio`), registrate nel registro operazioni.
 
-### Invariato
+#### Invariato
 - Probabilità di cattura, motore di gioco, Twitch e Channel Points, classifiche, formato dei backup.
 
-### Test
+#### Test
 - `test/audio.test.js`: 16 test. Suite completa: 266/266 su Node 24.22.2 e 26.13.0.
 
-## Non pubblicata — Classifiche, Hall of Fame e Stream Recap
+### Classifiche, Hall of Fame e Stream Recap
 
-Sviluppata nel ramo `feature/leaderboard` (basato su `feature/manual-backup-pokedex`). **Non è una release**: nessun tag, nessuna immagine, store invariato (resta la 1.0.0-rc.3).
 
-### Database: schema v5 (migrazione 5)
+#### Database: schema v5 (migrazione 5)
 - `twitch_users`: colonne `custom_name`, `custom_name_at`, `custom_name_by` (nome visualizzato scelto dall'admin).
 - Nuove tabelle: `player_aliases` (storico dei nomi), `leaderboard_rule_versions` (regole di punteggio versionate), `leaderboard_events` (un evento per cattura valida, univoco sul tentativo, immutabile), `leaderboard_snapshots` (risultati congelati, immutabili, non cancellabili), `leaderboard_settings`, `stream_recaps`.
 - Viste: `players`, `leaderboard_entries` (classifica calcolata dagli eventi, nessuna seconda copia dei dati).
 - Le catture reali già presenti (Twitch e manuali) entrano negli eventi con le regole iniziali (`source = 'backfill'`); DEMO e catture annullate escluse. Backup `pre-migration` automatico.
 
-### Classifiche
+#### Classifiche
 - Classifica catture e classifica punti per sessione, in tempo reale; punteggio = base + bonus rarità + bonus shiny, configurabile, con regole versionate e punti salvati alla cattura.
 - Sezione **Classifiche** della dashboard: sessione corrente o precedente, filtri Twitch/Manuale e giocatore, controlli dell'overlay, congelamento e sblocco con motivazione, istantanee, anteprima privata.
 - Overlay OBS: Top 10, podio, vincitore, riepilogo, Hall of Fame, via WebSocket; restano visibili finché non vengono nascoste (anche dopo la fine della diretta e dopo un riavvio).
@@ -39,43 +46,42 @@ Sviluppata nel ramo `feature/leaderboard` (basato su `feature/manual-backup-poke
 - Hall of Fame permanente con filtri; Stream Recap salvato alla chiusura di ogni sessione Twitch e manuale.
 - Registro operazioni: congelamenti, sblocchi, mostra/nascondi, regole, comandi, rinomine, rigenerazione dei riepiloghi.
 
-### Correzione: backup ripristinato su un'altra installazione
+#### Correzione: backup ripristinato su un'altra installazione
 - Difetto presente anche nella 1.0.0-rc.3. Le credenziali Twitch sono cifrate con `secret.key`, che non è nei backup. Ripristinando un backup su un'installazione nuova (Umbrel reinstallato, nuovo server) la decifratura andava in errore: il ripristino rispondeva 500 pur avendo sostituito i dati, Panoramica, Twitch e Sistema rispondevano 500 e la modalità manuale non partiva.
 - Ora le credenziali non leggibili con la chiave attuale sono trattate come assenti: Twitch risulta scollegato, con un avviso in Panoramica e nella pagina Twitch che spiega di reinserire il Client Secret e ricollegare gli account. Dashboard e modalità manuale funzionano.
 - Le credenziali cifrate originali restano intatte nel database finché un nuovo collegamento riuscito non le sostituisce. Formato dei backup invariato; `secret.key` resta esclusa.
 
-### Test
+#### Test
 - `test/leaderboard.test.js`: 30 test (i 28 casi richiesti, più catture annullate e rinomina).
 - `test/credentials-key.test.js`: 3 test sul ripristino con una `secret.key` diversa (backup di rete e locale, HTTP 200, pagine, modalità manuale, avviso, conservazione delle credenziali, ricollegamento).
 - Suite completa: 250/250 su Node 24.22.2 e 26.13.0.
 - `test/network-backup.test.js`: le verifiche "schema invariato" usano la versione corrente invece del numero 4; il backup costruito per far fallire la migrazione toglie le righe di migrazione dalla 4 in su (prima solo la 4).
 
-## Non pubblicata — Modalità manuale, backup di rete e modifica del Pokédex
+### Modalità manuale, backup di rete e modifica del Pokédex
 
-Sviluppata nel ramo `feature/manual-backup-pokedex`. **Non è una release**: nessun tag, nessuna immagine, store invariato (resta la 1.0.0-rc.3).
 
-### Database: schema v4 (migrazione 4)
+#### Database: schema v4 (migrazione 4)
 - `stream_sessions`: colonne `kind` (`twitch` / `manual` / `demo`), `errors`, `last_error`.
 - `user_pokemon`: colonne `origin` (`twitch` / `manual` / `admin` / `import` / `demo`, ricavata dai dati esistenti), `note`, `rev`, `updated_at`, `updated_by`.
 - `twitch_users`: colonna `origin` (`twitch` / `demo` / `local`).
 - Nuova tabella `admin_audit` (registro delle modifiche).
 - Solo aggiunte, nessun dato modificato o rimosso. Backup `pre-migration` automatico prima della migrazione. La rc.3 rifiuta un database v4: per tornare indietro va rimesso il backup `pre-migration` (README → *Tornare a una versione precedente*).
 
-### Modalità manuale
+#### Modalità manuale
 - Nuova sezione **Controllo gioco**: modalità AUTOMATICA/MANUALE, avvio e arresto del gioco con Twitch OFFLINE usando lo stesso motore, tempo trascorso, incontri, catture, errori, indicatore SESSIONE MANUALE nella barra in alto.
 - Lanci per giocatori locali (separati dagli utenti Twitch) o per spettatori registrati; nessuna chiamata a Twitch, nessun EventSub, nessun riscatto reale.
 - La diretta Twitch ha la priorità: la sessione manuale viene chiusa (`twitch_live`), registrata e segnalata in dashboard.
 - Storico dirette con filtro per tipo di sessione.
 
-### Backup di rete
+#### Backup di rete
 - Backup automatici e manuali in una cartella montata in `/backups-network` (Umbrel `folderAccess` o volume Docker): verifica della connessione, frequenza, ora, rotazione, backup prima degli aggiornamenti, stato e ritentativi, tempi massimi per non bloccare l'app.
 - Copia consistente (`VACUUM INTO`), manifest con versione, schema e SHA-256, scrittura atomica, nessun segreto in chiaro, file sconosciuti mai toccati, ultimo backup valido mai eliminato.
 - Ripristino guidato: verifica, riepilogo, conferma, backup di sicurezza, arresto del motore, gestione del WAL, verifica di integrità e rollback automatico in caso di errore.
 
-### Modifica del Pokédex
+#### Modifica del Pokédex
 - Nuova sezione **Modifica Pokédex**: ricerca e filtri, correzione, registrazione e rimozione di esemplari con anteprima delle differenze, conferma, controllo dei conflitti (revisione), origine sempre visibile, registro delle modifiche.
 
-### Test
+#### Test
 - 37 nuovi test (modalità manuale, backup di rete, modifica del Pokédex).
 
 ## 1.0.0-rc.3 — Overlay Themes e correzioni dopo l'audit pre-release

@@ -48,11 +48,9 @@ Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10
 
 Dati: `~/umbrel/app-data/piu-live-catch/data` (database, immagini, backup, log, `secret.key`), inclusi nei backup di Umbrel.
 
-## Cartella di rete per i backup (versione in sviluppo, non pubblicata)
+## Cartella di rete per i backup (dalla 1.0.0)
 
-Disponibile solo nel ramo di sviluppo `feature/manual-backup-pokedex`: **la rc.3 pubblicata nello store non ha questa funzione** e il manifest dello store non è stato modificato.
-
-Il manifest `piu-live-catch/umbrel-app.yml` del ramo dichiara una cartella scelta dall'utente (`folderAccess`, id `backup-folder`) montata in scrittura nel servizio `web` in `/backups-network` (`BACKUP_TARGET_ROOT`).
+Il manifest `piu-live-catch/umbrel-app.yml` dichiara una cartella scelta dall'utente (`folderAccess`, id `backup-folder`) montata in scrittura nel servizio `web` in `/backups-network` (`BACKUP_TARGET_ROOT`).
 
 1. umbrelOS 2.x → **File** → **Rete**: aggiungi la condivisione del NAS (SMB) oppure collega un disco esterno.
 2. Impostazioni dell'app Live Catch → *Cartella dei backup* → scegli la cartella.
@@ -173,7 +171,7 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 ## Collaudo consigliato sul tuo Umbrel
 
 1. Installazione: l'app si apre, `http://umbrel.local:8788/health` risponde `"status":"ok"`.
-2. *Backup e Sistema*: versione installata `1.0.0-rc.3`, **schema DB v3**, crea un backup manuale. Aggiornando da una rc.2 deve esserci anche il backup `…-pre-migration.sqlite.gz`.
+2. *Backup e Sistema*: versione installata `1.0.0`, **schema DB v5**, crea un backup manuale. Aggiornando da una versione precedente deve esserci anche il backup `…-pre-migration.sqlite.gz`.
 3. Riavvia l'app da Umbrel: i dati restano, il login con la tua password funziona.
 4. *Impostazioni → Sicurezza*: "Il tuo IP visto dal server" deve essere l'IP del tuo PC, **non** un 10.x/172.x. Se vedi l'indirizzo del gateway, i proxy fidati non sono riconosciuti: segnalalo.
 5. DEMO con OBS (overlay da `http://IP-UMBREL:8788/overlay`).
@@ -186,11 +184,10 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 8. Overlay Designer con OBS: cambia tema a gioco fermo, la sorgente si aggiorna senza ricaricarla; una simulazione su OBS mostra il badge "SIMULAZIONE"; in diretta il simulatore resta nell'anteprima privata.
 9. Rollback (facoltativo, su un'installazione di prova): segui README → *Tornare a una versione precedente*. Con la rc.2 i dati devono restare tutti e l'overlay tornare all'aspetto precedente.
 
-### Classifiche (versione in sviluppo, non pubblicata)
+### Classifiche (dalla 1.0.0)
 
-Da provare solo con un'immagine compilata da questo ramo (Metodo B), su un'installazione di prova o dopo un backup:
 
-1. *Backup e Sistema*: **schema DB v5**; aggiornando da rc.3 deve esserci il backup `…-pre-migration.sqlite.gz`. Le catture già esistenti compaiono in *Classifiche → Hall of Fame*.
+1. Aggiornando da rc.3 deve esserci il backup `…-pre-migration.sqlite.gz`. Le catture già esistenti compaiono in *Classifiche → Hall of Fame*.
 2. Sessione manuale con OBS: lancia qualche Poké Ball, poi *Classifiche → Mostra classifica*, *Podio*, *Mostra vincitore*: la sorgente `/overlay` si aggiorna senza ricaricarla e mostra **SESSIONE MANUALE**.
 3. Ferma la sessione: la schermata resta in OBS (CLASSIFICA FINALE) finché non premi *Nascondi*; il riepilogo compare in *Riepiloghi*.
 4. Riavvia l'app da Umbrel con una classifica visibile: deve ricomparire da sola nell'overlay.
@@ -198,7 +195,7 @@ Da provare solo con un'immagine compilata da questo ramo (Metodo B), su un'insta
 6. *Congela risultati*, poi un'altra cattura: la classifica non cambia; *Sblocca* chiede la motivazione.
 7. Crea un backup di rete e ripristinalo: classifiche e risultati congelati tornano come nel backup.
 
-### Audio OBS (versione in sviluppo, non pubblicata)
+### Audio OBS (dalla 1.0.0)
 
 1. Copia i tuoi file audio (MP3, OGG o WAV) in `~/umbrel/app-data/piu-live-catch/data/audio/`, per esempio dal Mac:
    ```bash

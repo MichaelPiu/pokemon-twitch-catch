@@ -2,7 +2,7 @@ manifestVersion: 1
 id: piu-live-catch
 category: social
 name: Live Catch
-version: "1.0.0-rc.3"
+version: "1.0.0"
 tagline: Gioco di cattura per Twitch con i punti canale
 description: >-
   Live Catch è un gioco interattivo per la tua diretta Twitch.
@@ -17,7 +17,7 @@ description: >-
 
   Progetto amatoriale non ufficiale: Pokémon e i relativi marchi appartengono ai rispettivi
   titolari (Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company). Nessuna affiliazione.
-releaseNotes: "Terza versione candidata. Nuovo Overlay Designer con 9 temi, anteprima in tempo reale, simulatore e cambio tema senza ricaricare la sorgente OBS (le impostazioni attuali dell'overlay diventano il tema Classico, l'aspetto non cambia). Errori temporanei di Twitch (429, 5xx, rete, timeout) non interrompono più la diretta: ritentativi automatici, revoca solo per token davvero non validi. Più robustezza: cookie malformati, limiti delle connessioni dell'overlay, statistiche coerenti dopo i riscatti annullati, validazione delle importazioni. Database aggiornato allo schema v3 con backup automatico prima della migrazione; backup di versioni più recenti rifiutati senza modificare i dati."
+releaseNotes: "Prima versione stabile. Novità: modalità manuale (avvio e arresto del gioco senza diretta), backup e ripristino su una cartella di rete o un disco esterno, modifica del Pokédex dalla dashboard, classifiche per catture e punti con podio, vincitore e risultati congelati, gestione dei giocatori e dei nickname, Hall of Fame e Stream Recap, comando !leaderboard, effetti sonori allo spawn e musica alla cattura riprodotti dalla stessa sorgente OBS dell'overlay (/overlay, file audio tuoi nella cartella dati). Correzione: un backup ripristinato su una nuova installazione non blocca più la dashboard (Twitch risulta scollegato e va ricollegato). Il database passa allo schema v5 con backup automatico prima della migrazione; dati, catture e impostazioni restano."
 developer: MichaelPiu
 website: https://github.com/MichaelPiu/piu-umbrel-app-store
 dependencies: []

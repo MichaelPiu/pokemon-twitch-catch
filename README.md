@@ -459,7 +459,7 @@ Sezione **Modifica Pokédex** (solo amministratore).
 
 ## Classifiche, Hall of Fame e Stream Recap
 
-Sezione **Classifiche** della dashboard. *Funzionalità della versione in sviluppo, non pubblicata.*
+Sezione **Classifiche** della dashboard (dalla 1.0.0).
 
 ### Da dove arrivano i dati
 
@@ -632,7 +632,7 @@ Per una sessione ancora in corso, o chiusa prima di questa versione, viene mostr
 
 ## Effetti sonori per OBS
 
-Sezione **Audio OBS** della dashboard. *Funzionalità della versione in sviluppo, non pubblicata.*
+Sezione **Audio OBS** della dashboard (dalla 1.0.0).
 
 - **Spawn**: a ogni nuovo Pokémon suona un effetto scelto a caso dalla lista (mai lo stesso due volte di fila, se la lista ha almeno due file), oppure sempre lo stesso file.
 - **Cattura confermata**: quando il motore registra una cattura riuscita suona la musica di conferma, una sola volta.
@@ -801,8 +801,8 @@ Versioni dello schema del database:
 |---|---|
 | 1.0.0-rc.1, 1.0.0-rc.2 | v2 |
 | 1.0.0-rc.3 (Overlay Themes) | v3: tabella `overlay_themes` |
-| versione in sviluppo (modalità manuale, backup di rete, modifica Pokédex) — **non pubblicata** | v4: tipo di sessione, origine degli esemplari, tabella `admin_audit` |
-| versione in sviluppo (classifiche, Hall of Fame, Stream Recap) — **non pubblicata** | v5: eventi e istantanee delle classifiche, regole di punteggio versionate, riepiloghi, storico dei nomi |
+| — (passaggio intermedio, mai pubblicato da solo) | v4: tipo di sessione, origine degli esemplari, tabella `admin_audit` |
+| 1.0.0 (modalità manuale, backup di rete, modifica Pokédex, classifiche, Hall of Fame, Stream Recap, audio OBS) | v5: eventi e istantanee delle classifiche, regole di punteggio versionate, riepiloghi, storico dei nomi |
 
 Un'app non apre mai un database (o un backup) con uno schema più recente di quello che conosce: l'avvio o il ripristino vengono rifiutati con un messaggio chiaro e **senza modificare nulla**. Fanno eccezione le versioni fino alla 1.0.0-rc.2, che non hanno questo controllo (vedi sotto).
 
