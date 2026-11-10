@@ -2,7 +2,7 @@
 
 ## 1.0.0-rc.3 — Overlay Themes e correzioni dopo l'audit pre-release
 
-Terza versione candidata, preparata in locale: **non ancora pubblicata** (nessun tag, nessuna immagine su GHCR, digest da generare con la CI del rilascio).
+Terza versione candidata (**Release Candidate, non una versione stabile**), pubblicata il 10 novembre 2026: tag `v1.0.0-rc.3`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3@sha256:5b1fb376086df52b883cac684ae939c0451f1a92695c8599a8c1cc79b5dbb114` (`linux/amd64`, `linux/arm64`), store Umbrel aggiornato.
 
 ### Aggiornamento dalla 1.0.0-rc.2
 - Il database passa dallo schema v2 al v3 (tabella `overlay_themes`). Prima della migrazione l'app crea da sola il backup `…-pre-migration.sqlite.gz`.
@@ -13,7 +13,9 @@ Terza versione candidata, preparata in locale: **non ancora pubblicata** (nessun
 - **Test automatici locali**: 180/180 su Node 24.22.2 (la versione dell'immagine `node:24-alpine`) e su Node 26.13.0, con Twitch simulato (`FakeTwitch`, `FakeEventSub`). Comprendono migrazioni, backup e ripristino, errori temporanei di Twitch e sicurezza.
 - **Verifiche locali con script**: rollback rc.2 ↔ rc.3 sulla stessa cartella dati (nessun dato perso); backup creato con una versione di Node e ripristinato con l'altra; avvio del server con `/health` e `scripts/healthcheck.js`.
 - **Test browser automatizzati** (Chromium del browser integrato, non OBS): pagine della dashboard e Overlay Designer, cookie malformato, conflitto di revisione dei temi (409).
-- **Non ancora verificati**: CI di GitHub su questa versione (test Node 24, container amd64/arm64, linter Umbrel), build e pubblicazione dell'immagine, installazione e rollback su un vero Umbrel, Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi), overlay dentro OBS.
+- **CI di GitHub sul tag `v1.0.0-rc.3`** (run 42776475968): test Node 24 180/180, linter Umbrel, avvio reale del container amd64 e arm64 (arm64 in emulazione QEMU), build e push multi-arch, controllo anonimo bloccante superato.
+- **Pubblicazione verificata senza credenziali**: manifest e digest su GHCR, tutti i layer di entrambe le architetture scaricati e verificati; Action dello store (linter ufficiale con `--check-images`) superata.
+- **Non ancora verificati**: installazione e rollback su un vero Umbrel, Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi), overlay dentro OBS.
 
 ### Overlay Designer
 - Nuova sezione **Overlay Designer**, che sostituisce la pagina *Overlay*.
@@ -134,7 +136,7 @@ Terza versione candidata, preparata in locale: **non ancora pubblicata** (nessun
 - Il passo *Verifica accesso anonimo* del job di pubblicazione non ha più `continue-on-error`: prima una run poteva risultare verde anche con il pacchetto GHCR privato (è successo per rc.1 e rc.2, HTTP 401).
 - Nuovo `scripts/check-ghcr-anonymous.mjs` (Node, nessuna dipendenza, nessuna credenziale): token anonimo, manifest del tag appena pubblicato, digest uguale a quello della build e al contenuto ricevuto, presenza e download di `linux/amd64` e `linux/arm64` con la configurazione dell'architettura giusta. 401, 403, 404, digest mancante o diverso, architettura mancante, errori di rete e timeout fanno fallire il job. Il digest verificato va nel riepilogo della run.
 - `test/ghcr-anonymous-check.test.js` (24 test) con un registry simulato in locale; controllano anche che il workflow non tolleri l'errore. Totale 180.
-- Stato GHCR: il 10 novembre 2026 il pacchetto è stato reso pubblico; pull anonimo, manifest e digest della rc.2 e Action dello store verificati. Il nuovo passo della CI non è ancora stato eseguito in GitHub Actions.
+- Stato GHCR: il 10 novembre 2026 il pacchetto è stato reso pubblico; pull anonimo, manifest e digest della rc.2 e Action dello store verificati. Il nuovo passo è stato poi eseguito e superato in GitHub Actions per `main` e per il tag `v1.0.0-rc.3`.
 
 ### Test
 - `test/overlay-stability.test.js` (25 test):
