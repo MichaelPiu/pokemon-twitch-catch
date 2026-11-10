@@ -124,6 +124,12 @@ Umbrel installa app di terze parti tramite i **Community App Store**: un reposit
 
 Prerequisito: l'immagine Docker su GitHub Container Registry deve essere **pubblica**, perché Umbrel la scarica senza credenziali (lo controlla l'Action dello store a ogni modifica).
 
+> **Stato attuale (verificato il 10 novembre 2026, senza credenziali):**
+> - **immagine pubblica**: il repository GitHub e il pacchetto GHCR sono pubblici (sono due impostazioni separate); il token anonimo di pull risponde HTTP 200;
+> - **manifest e digest**: l'indice `1.0.0-rc.2` risponde HTTP 200 con digest `sha256:346ee3bcc5025ce7a40508fbe3ceb0805af541c803fc3dfc501e05a22525f9aa`, lo stesso del log della CI e dello store; le immagini `linux/amd64` e `linux/arm64` e le loro configurazioni si scaricano, e i layer rispondono (HTTP 206). Non è stato eseguito un `docker pull` completo;
+> - **verifica dello store**: l'Action dello store (linter ufficiale con `--check-images`) è superata;
+> - **non ancora verificati**: l'installazione reale su un Umbrel e l'uso con Twitch e OBS reali. La rc.3 non è ancora pubblicata: lo store contiene la rc.2.
+
 Installazione:
 1. Apri l'interfaccia di Umbrel (`http://umbrel.local`).
 2. Vai in **App Store**, apri il menu **⋯** in alto a destra e scegli **Community App Stores** (la voce può variare leggermente tra versioni di umbrelOS).
@@ -179,6 +185,10 @@ Variabili d'ambiente:
 | `TRUSTED_PROXIES` | vuoto | Proxy autorizzati a inoltrare l'IP del browser (`X-Forwarded-For`). Vuoto = accesso diretto, header ignorati. Su Umbrel il pacchetto imposta `docker-gateway,piu-live-catch_app_proxy_1`. Voci ammesse: IP, rete CIDR, `loopback`, `docker-gateway`, nome host |
 | `ADMIN_HOSTS` | vuoto | Hostname dedicati alla dashboard (es. `livecatch.lan`). Ha la precedenza sull'impostazione della dashboard |
 | `ALLOWED_ORIGINS` | vuoto | Origini aggiuntive ammesse per la dashboard (es. `https://livecatch.example.lan` dietro un reverse proxy HTTPS) |
+| `WS_OVERLAY_MAX_CONNECTIONS` | `100` | Connessioni WebSocket dell'overlay (OBS, anteprime) accettate in totale. Oltre il limite la connessione riceve 503 e l'overlay riprova da solo |
+| `WS_OVERLAY_MAX_PER_IP` | `30` | Connessioni dell'overlay accettate da uno stesso indirizzo IP (basta per una sorgente Browser per ogni scena di OBS). Dietro il proxy di Umbrel l'IP è quello del browser solo se `TRUSTED_PROXIES` è corretto |
+| `TWITCH_HTTP_TIMEOUT_MS` | `10000` | Tempo massimo di una chiamata alle API di Twitch |
+| `TWITCH_HTTP_RETRIES` | `2` | Ritentativi automatici sugli errori temporanei di Twitch (rete, timeout, HTTP 429 e 5xx) |
 
 La vecchia variabile `TRUST_PROXY` non esiste più (con la 0.x gli header inoltrati erano considerati sempre affidabili): se è impostata viene ignorata con un avviso nei log.
 
@@ -311,10 +321,80 @@ Rarità iniziale: Mitico / Leggendario da PokéAPI; per gli altri dal *capture r
 
 1. In OBS: **Sorgenti → + → Browser**.
 2. URL: `http://IP-DEL-SERVER:8788/overlay` (es. `http://192.168.1.50:8788/overlay`). Su Windows usa l'**IP** invece di `umbrel.local`.
-3. Larghezza `1920`, altezza `1080` (o quelle impostate in **Overlay**).
+3. Larghezza `1920` e altezza `1080`, oppure `1280` × `720`. L'overlay disegna tutto su una tela 1920×1080 e la scala alla dimensione della sorgente, quindi l'aspetto è identico.
 4. Spunta *Aggiorna il browser quando la scena diventa attiva*. Lo sfondo è già trasparente.
 
-Quando non sei in diretta l'overlay è vuoto. Per provarlo usa la **Modalità DEMO** oppure i pulsanti di anteprima nella sezione **Overlay**.
+**Dopo un aggiornamento dell'app**: OBS conserva in cache i file della pagina. Apri le proprietà della sorgente Browser e premi **Aggiorna la cache della pagina corrente** (oppure rimuovi e ricrea la sorgente). Senza questo passaggio la sorgente può continuare a usare il codice precedente fino al riavvio di OBS. Il cambio di tema invece non richiede mai di ricaricare.
+
+**Requisiti del browser della sorgente.** La sorgente Browser di OBS usa Chromium (CEF). L'overlay usa:
+- `color-mix()`, che richiede Chromium 111 o successivo;
+- `backdrop-filter` (temi Clean Glass e Holographic);
+- `@property`, le variabili CSS e `clip-path`.
+
+Con un Chromium più vecchio alcuni effetti (sfumature, vetro smerigliato) possono mancare o apparire diversi; le informazioni di gioco restano leggibili. Le versioni di Chromium incluse nelle singole versioni di OBS **non sono state verificate** in questo progetto: controlla la tua versione di OBS (*Aiuto → Informazioni*) e prova l'anteprima con un tema prima della diretta.
+
+Quando non sei in diretta l'overlay è vuoto. Per provarlo usa la **Modalità DEMO** oppure il simulatore dell'**Overlay Designer**.
+
+### Overlay Designer (temi)
+
+Sezione **Overlay Designer** della dashboard. Contiene **9 temi integrati**, ognuno con una disposizione propria e non una semplice variazione di colore:
+
+| Tema | Stile |
+|---|---|
+| Classico | L'aspetto delle versioni precedenti: card centrata con bordo del colore della rarità. È il tema attivo dopo l'aggiornamento, così la diretta non cambia aspetto |
+| Minimal Dark | Barra orizzontale compatta: immagine a sinistra, linea del tempo sottile |
+| Clean Glass | Vetro smerigliato, con il Pokémon che fluttua sopra la card |
+| Neon HUD | Interfaccia sci-fi: angoli tagliati, staffe di mira, timer circolare al neon, linee di scansione |
+| Minimal Light | Stile editoriale chiaro: titolo serif, filetti, timer numerico |
+| Cyber Pulse | Pannello inclinato, nome con effetto glitch, bordo pulsante, grande conto alla rovescia |
+| Holographic | Carta collezionabile con bordo iridescente e riflesso olografico |
+| Cinematic | Sottopancia panoramico a tutta larghezza; le notifiche appaiono come sottotitoli |
+| Gradient Motion | Gradienti in movimento, forme morbide, entrate elastiche |
+
+**Cosa puoi fare:**
+- **Gestire i temi**: selezionarli, duplicarli, modificarli, salvarli, ripristinare i valori originali, creare temi personalizzati partendo da uno stile grafico, importarli ed esportarli in JSON. I preset integrati non si possono eliminare ma si possono ripristinare.
+- **Modificare**:
+  - colori, compreso lo sfondo con la sua opacità;
+  - font e dimensioni del testo, spessore, maiuscolo, spaziatura;
+  - bordi, angoli, ombre e bagliore;
+  - posizione (9 posizioni) con margini, larghezza del pannello, dimensione dell'immagine e scala;
+  - entrata, uscita e velocità delle animazioni, e quanti eventi possono restare in coda prima che le animazioni vengano saltate;
+  - durata delle notifiche e quante ne restano visibili insieme;
+  - elementi mostrati e stile del timer (barra, anello, numeri);
+  - intensità degli effetti.
+- **Anteprima in tempo reale**: è la stessa pagina `/overlay` che usa OBS, alla risoluzione scelta (1920×1080 o 1280×720) e con lo sfondo che preferisci. Ogni modifica si vede subito, senza ricaricare e senza salvare.
+- **Cambio tema senza riavvio**: **▶ Usa su OBS** invia il tema all'overlay via WebSocket; anche il salvataggio del tema attivo aggiorna OBS subito.
+- **Font**:
+  - le famiglie proposte sono font di sistema, senza download esterni;
+  - un font personalizzato deve essere installato sul **PC che esegue OBS**;
+  - il nome del font personalizzato può contenere lettere (anche accentate), cifre, spazi, trattini e punti, fino a 60 caratteri; apostrofi, virgolette, virgole e punti e virgola non sono ammessi;
+  - l'anteprima nel browser della dashboard può mostrare un font diverso se lì non è installato.
+- **Prestazioni**: con **intensità effetti 0** non ci sono animazioni continue. Quando nessun Pokémon è visibile l'overlay non esegue animazioni.
+- **Molti riscatti ravvicinati**: lanci, catture e fughe passano da una coda con un limite configurabile (*Animazioni → Eventi in coda prima di saltare le animazioni*, predefinito 6).
+  - Quando la coda è piena a metà le animazioni diventano 3 volte più rapide.
+  - Quando la coda è piena le animazioni vengono saltate.
+  - Esiti, tentativi e catture restano sempre esatti: nessun evento reale viene perso.
+  - Se le notifiche in attesa superano il massimo, si scartano per prime le meno importanti; le catture reali restano.
+  - Il cambio di tema non aspetta la coda: viene applicato subito, e il contatore dei tentativi resta quello corretto.
+- **Leggibilità**: le scritte piccole hanno una dimensione minima di 14 px e le notifiche di 18 px, sulla tela 1920×1080 (a 1280×720 diventano circa 9 e 12 px). Il testo dei preset ha un contrasto di almeno 4,5:1 sul proprio pannello, anche sopra una scena di gioco chiara.
+- **Modifiche contemporanee**: se lo stesso tema viene salvato da un'altra scheda o da un'altra persona dopo che lo hai aperto, il salvataggio non sovrascrive nulla. Il Designer chiede se **ricaricare** la versione salvata o **sovrascriverla** consapevolmente.
+- **Formato JSON** (`livecatch-overlay-theme`, versione 1):
+  - massimo 64 KB;
+  - ogni valore viene validato: colori solo `#hex`, `rgb()`, `rgba()` o `transparent`; numeri riportati negli intervalli consentiti; campi sconosciuti scartati;
+  - l'importazione crea sempre un **nuovo** tema personalizzato e mostra cosa è stato corretto.
+
+**Simulatore** (pulsanti sotto l'anteprima):
+- **Eventi disponibili**: spawn, shiny, leggendario, lancio fallito, cattura, fuga, scadenza, notifica di prova, sequenza completa, pulizia.
+- **Isolamento**: gli eventi simulati non passano dal motore di gioco e **non scrivono nulla nel database**. Pokédex, statistiche, classifiche, catture e storico delle dirette non cambiano (verificato da test automatici). Il simulatore legge soltanto l'elenco dei Pokémon, per mostrare nomi e immagini veri.
+- **Anteprima privata o overlay pubblico**:
+  - Normalmente le simulazioni compaiono **solo nell'anteprima privata** del Designer, che funziona sempre, anche durante una diretta.
+  - Con *Invia anche all'overlay pubblico (OBS)* gli eventi arrivano anche alle sorgenti OBS collegate, con il badge **SIMULAZIONE**.
+  - L'invio all'overlay pubblico è consentito solo a gioco fermo (OFFLINE, senza DEMO). In LIVE, in PAUSED e in DEMO l'opzione è disattivata, e così in ERROR o CONNECTING quando Twitch ha segnalato il canale in diretta. Il server rifiuta la richiesta (HTTP 409) anche se l'API viene chiamata direttamente.
+  - Ogni invio all'overlay pubblico è registrato nel log (*Backup e Sistema → Log*).
+- **Pulizia automatica**:
+  - Quando parte la diretta o la DEMO, gli elementi simulati ancora visibili vengono tolti subito dall'overlay, insieme a eventuali sequenze in corso.
+  - Spawn e notifiche reali non vengono toccati.
+  - Lo stesso vale se OBS si ricollega durante il passaggio: alla riconnessione riceve solo lo stato reale.
 
 ## Configurazione della dashboard
 
@@ -328,7 +408,7 @@ Interfaccia con tema scuro viola, menu laterale (riducibile a sole icone), barra
 - **Gestione Spawn**: intervalli, durata, probabilità, pesi rarità, probabilità di cattura, shiny, eventi speciali, generazione manuale, storico.
 - **Gestione Pokémon**: importazione, ricerca, rarità, difficoltà, peso di apparizione, abilitazione, shiny, statistiche.
 - **Poké Ball e Ricompense**: crea, modifica moltiplicatori, cattura garantita, abilita/disabilita, collegamento ai punti canale.
-- **Gestione Twitch**, **Comandi Chat**, **Overlay**, **Storico Dirette**, **Backup e Sistema** (backup, log, versione, stato componenti, spazio).
+- **Gestione Twitch**, **Comandi Chat**, **Overlay Designer** (vedi [Overlay Designer](#overlay-designer-temi)), **Storico Dirette**, **Backup e Sistema** (backup, log, versione, stato componenti, spazio).
 - **Impostazioni**: cambio password, pagine pubbliche, Modalità DEMO.
 
 Pagine pubbliche (disattivabili da *Backup & Sistema*): `/` introduzione, `/pokedex/USERNAME`, `/leaderboard`. Endpoint di stato: `/health`.
@@ -357,8 +437,9 @@ Prefisso, testi, alias, cooldown globale e per utente, anti-spam e limite di mes
 ## Ripristino
 
 1. *Backup & Sistema → Backup*: scegli il file e premi **Ripristina** (oppure prima **Carica** un file `.sqlite.gz` scaricato in precedenza).
-2. L'app crea automaticamente un backup *pre-restore* dello stato attuale, verifica integrità e appartenenza del file, sostituisce il database e riparte.
+2. L'app verifica integrità, appartenenza e versione dello schema del file, crea automaticamente un backup *pre-restore* dello stato attuale, sostituisce il database e riparte.
 3. Il ripristino è bloccato durante una diretta.
+4. Un backup creato da una versione più recente dell'app viene rifiutato prima di qualsiasi modifica (anche al caricamento del file).
 
 Se ripristini su un'installazione nuova, i token Twitch salvati nel backup sono cifrati con la vecchia `secret.key`: ricopia anche quel file oppure ricollega gli account Twitch (2 minuti).
 
@@ -369,6 +450,40 @@ Se ripristini su un'installazione nuova, i token Twitch salvati nel backup sono 
 
 Il database viene migrato automaticamente all'avvio con migrazioni incrementali (`src/database/migrations.js`): non viene mai cancellato. **Prima di applicare una migrazione l'app crea da sola un backup `pre-migration`** in `/data/backups`, ripristinabile dalla dashboard.
 
+Versioni dello schema del database:
+
+| Versione dell'app | Schema |
+|---|---|
+| 1.0.0-rc.1, 1.0.0-rc.2 | v2 |
+| 1.0.0-rc.3 (Overlay Themes) | v3: tabella `overlay_themes` |
+
+Un'app non apre mai un database (o un backup) con uno schema più recente di quello che conosce: l'avvio o il ripristino vengono rifiutati con un messaggio chiaro e **senza modificare nulla**. Fanno eccezione le versioni fino alla 1.0.0-rc.2, che non hanno questo controllo (vedi sotto).
+
+### Tornare a una versione precedente (rollback)
+
+Esempio: dalla 1.0.0-rc.3 (schema v3) alla 1.0.0-rc.2 (schema v2). Prima di tutto crea un backup manuale (*Backup & Sistema → Crea backup ora*) e scaricalo.
+
+Ci sono due modi. Il primo è consigliato.
+
+**1. Rollback semplice: solo la versione dell'app, nessuna perdita di dati.**
+La rc.2 si avvia anche sul database v3 e non lo modifica nella struttura:
+- spettatori, catture, sessioni, statistiche, ricompense e impostazioni restano tutti, anche quelli registrati dopo l'aggiornamento;
+- l'overlay torna all'aspetto che aveva **prima** dell'aggiornamento: la rc.2 non conosce i temi del Designer e usa le vecchie impostazioni dell'overlay;
+- i temi restano salvati nel database: tornando alla rc.3, Designer e tema attivo ricompaiono come li avevi lasciati.
+
+**2. Rollback esatto: lo stato di prima dell'aggiornamento.**
+Dopo essere tornato alla rc.2 (come sopra), in *Backup & Sistema → Backup* ripristina il file `livecatch-…-pre-migration.sqlite.gz` creato al momento dell'aggiornamento. Il database torna allo schema v2 e a com'era quel giorno: **le catture e le modifiche fatte dopo l'aggiornamento non ci sono più nel database attivo**. Non vanno perse: il ripristino crea prima il backup `pre-restore` dello stato attuale, che puoi ripristinare a sua volta per tornare indietro.
+
+Come cambiare versione:
+- **Metodo B (SSH)**:
+  ```bash
+  cd ~/livecatch && git fetch --tags && git checkout v1.0.0-rc.2 && sudo docker compose up -d --build
+  ```
+  Per tornare all'ultima versione: `git checkout main && sh scripts/install-umbrel-ssh.sh`.
+- **Metodo A (App Store)**: l'App Store di Umbrel installa solo la versione pubblicata nello store. Per tornare alla rc.2 bisogna ripubblicare nello store il manifest e l'immagine della rc.2 (`scripts/publish-store.sh` con il digest della rc.2) e aggiornare l'app da Umbrel. *Questa procedura non è ancora stata provata su un Umbrel reale.*
+
+Verifica eseguita in locale (non su Umbrel): con il codice rc.2 e quello della rc.3 sulla stessa cartella dati, entrambi i modi conservano tutti i dati come descritto sopra.
+
 ## Risoluzione problemi
 
 | Problema | Soluzione |
@@ -376,6 +491,7 @@ Il database viene migrato automaticamente all'avvio con migrazioni incrementali 
 | Stato **ERROR – not_configured** | Completa i passi 1 e 2 della sezione Twitch. |
 | Stato **ERROR – auth_error** | Il token del canale è stato revocato o non si rinnova: *Twitch → Account del canale → Ricollega*. Finché non lo fai, metti in pausa a mano le ricompense indicate nell'avviso. Al ricollegamento l'app le mette in pausa e rimborsa i riscatti in coda. |
 | Avviso "Token del bot non più valido" | Il gioco continua e risponde l'account del canale. *Twitch → Account bot → Ricollega*. |
+| Avviso "Problema temporaneo di Twitch … il gioco continua" | Twitch non ha risposto (rete, timeout, HTTP 429 o 5xx). **Non** è una revoca: il gioco resta attivo, nessuna ricompensa viene messa in pausa e l'app riprova da sola; l'avviso sparisce alla prima risposta corretta. Se resta per molti minuti controlla la connessione Internet del server. |
 | Stato **PAUSED** | Connessione a Twitch persa: il gioco è sospeso in sicurezza e riprende da solo appena la diretta viene confermata. Controlla la connessione Internet del server. |
 | Vado in live ma il gioco non parte | *Twitch → Testa connessione*. Verifica che sia collegato l'account del canale che trasmette. Il controllo periodico (60 s) rileva la diretta anche se l'evento è andato perso. |
 | La sottoscrizione `redemption` risulta *failed* | Il canale non è Affiliate/Partner o manca lo scope: ricollega l'account. |
@@ -387,6 +503,11 @@ Il database viene migrato automaticamente all'avvio con migrazioni incrementali 
 | Il bot non risponde | I comandi funzionano solo in LIVE; controlla cooldown/anti-spam; se usi un bot separato, assicurati che non sia bannato nel canale. |
 | Nessun Pokémon appare | Importa i Pokémon; verifica che ci siano Pokémon abilitati e che *Spawn automatici attivi* sia acceso. |
 | Overlay vuoto in OBS | Usa l'IP del server; prova la Modalità DEMO; verifica che l'URL sia `/overlay`. |
+| Dopo l'aggiornamento l'overlay in OBS si comporta come prima | Proprietà della sorgente Browser → **Aggiorna la cache della pagina corrente**. |
+| Il simulatore non invia all'overlay pubblico | È consentito solo a gioco fermo: in LIVE, PAUSED o DEMO, e in ERROR o CONNECTING quando Twitch segnala il canale in diretta, le simulazioni restano nell'anteprima privata. |
+| Ripristino rifiutato: "Il backup usa lo schema vN, creato da una versione più recente" | Il backup viene da una versione più nuova dell'app: aggiorna Live Catch prima di ripristinarlo. Il database attuale non è stato toccato. |
+| Il container non parte: "Il database usa lo schema vN … più recente" | Stai eseguendo una versione dell'app più vecchia del database (ritorno indietro senza ripristino). Reinstalla la versione più recente oppure segui [Tornare a una versione precedente](#tornare-a-una-versione-precedente-rollback). Il database non viene modificato. |
+| Overlay irraggiungibile, nel log "Connessione overlay rifiutata: limite raggiunto" | Troppe sorgenti/pagine overlay aperte (o un client che apre connessioni senza fine). Chiudi le anteprime inutilizzate oppure alza `WS_OVERLAY_MAX_PER_IP` / `WS_OVERLAY_MAX_CONNECTIONS`. |
 | Ho perso la password admin | Crea un file vuoto chiamato `reset-admin-password` nella cartella dati (Umbrel: `~/umbrel/app-data/piu-live-catch/data/`, metodo B: `~/livecatch/data/`) e riavvia l'app. La nuova password temporanea sarà nel file `initial-admin-password.txt` nella stessa cartella. I dati di gioco non vengono toccati. |
 | Log | *Backup & Sistema → Log*, oppure il file `/data/logs/app.log`. |
 
@@ -421,6 +542,18 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - recupero dei riscatti in sospeso dopo la riconnessione EventSub, senza duplicati;
   - eventi tardivi, ritentativi, ricompense non elaborabili;
   - limiti delle ricompense collegate.
+- **Errori temporanei di Twitch** (`test/twitch-resilience.test.js`):
+  - 429 con `Retry-After`, 5xx, timeout e rete assente durante una diretta: nessuna revoca, nessuna pausa, nessun rimborso;
+  - token davvero revocato (rinnovo rifiutato con 400): procedura di revoca;
+  - recupero automatico e rinnovo del token deduplicato.
+- **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
+- **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):
+  - preset, validazione, importazione ed esportazione, persistenza e migrazione;
+  - simulatore isolato e bloccato sull'overlay pubblico in LIVE, PAUSED e DEMO;
+  - pulizia degli elementi simulati all'avvio della diretta;
+  - coda delle animazioni con oltre 100 eventi e cambio tema immediato;
+  - modifiche contemporanee dello stesso tema.
+  - Il vero `overlay.js` gira in un DOM minimo (`test/dom-shim.js`). Il rendering grafico reale va comunque provato in un browser e in OBS.
 
 Twitch viene simulato con un server EventSub WebSocket locale e un finto Helix: **solo nei test**.
 
@@ -442,6 +575,11 @@ La CI esegue anche il **linter ufficiale di Umbrel** (`getumbrel/umbrel-apps`, c
 
 1. Aggiorna `version` in `package.json` e in `piu-live-catch/umbrel-app.yml`, il tag immagine in `piu-live-catch/docker-compose.yml` e `releaseNotes`.
 2. Commit, poi tag `vX.Y.Z` e push: la CI esegue test, test del container (amd64 + arm64) e linter Umbrel, poi pubblica l'immagine multi-arch su GHCR. Il digest compare nel riepilogo della GitHub Action.
+   Subito dopo il push la CI verifica **senza credenziali**, come Umbrel, che l'immagine sia davvero scaricabile (`scripts/check-ghcr-anonymous.mjs`): token anonimo, manifest del tag appena pubblicato, digest uguale a quello della build, presenza e download di `linux/amd64` e `linux/arm64`. Se uno di questi controlli fallisce (401, 403, 404, digest diverso o malformato, architettura mancante, errore di rete o timeout) **il job fallisce**: non usare un digest preso da una run rossa. Lo stesso controllo si può eseguire a mano:
+
+   ```bash
+   node scripts/check-ghcr-anonymous.mjs --repository michaelpiu/pokemon-twitch-catch --tag X.Y.Z --expect-digest sha256:<digest>
+   ```
 3. Prepara lo store pubblico con il digest e pubblicalo:
 
 ```bash
@@ -454,7 +592,10 @@ scripts/publish-store.sh ../piu-umbrel-app-store sha256:<digest>
 
 Alcuni passaggi richiedono i tuoi account o una tua decisione e non sono stati eseguiti dallo sviluppatore:
 
-1. **Immagine Docker pubblica**: il pacchetto GHCR `pokemon-twitch-catch` deve restare **pubblico** perché Umbrel lo scarica senza credenziali (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*). Codice e immagine sono pubblici per scelta del proprietario.
+1. **Immagine Docker scaricabile senza credenziali** (fatto): Umbrel scarica l'immagine GHCR `pokemon-twitch-catch` senza autenticazione, quindi il pacchetto deve essere **pubblico** (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*).
+   - Il **repository GitHub** di sviluppo è pubblico.
+   - Il **pacchetto GHCR** è pubblico: il 10 novembre 2026 token anonimo, manifest della rc.2 e immagini amd64/arm64 hanno risposto HTTP 200 senza credenziali, e l'Action dello store è stata superata.
+   - Resta da provare l'installazione vera su Umbrel (punto 5).
 2. **Twitch**: creare l'applicazione su dev.twitch.tv e autorizzare l'account del canale (e l'eventuale bot) con il codice di attivazione.
 3. **Affiliate/Partner**: necessario per i punti canale.
 4. **Hostname dedicato** (consigliato): record DNS locale o file `hosts`, vedi [Sicurezza dell'accesso](#sicurezza-dellaccesso).

@@ -40,9 +40,12 @@ Tempo stimato: 20–30 minuti, da fare una sola volta.
 5. In alto premi **Testa connessione**: devono essere quasi tutte ✅ (“EventSub” è ✅ se il server è connesso).
 
 ## Passo 5 — Aggiungi l'overlay in OBS
-1. Nella dashboard apri **Overlay** e premi **Copia** accanto all'indirizzo.
+1. Nella dashboard apri **Overlay Designer** e premi **Copia** accanto all'indirizzo. Qui puoi anche scegliere uno dei temi e provarlo con il simulatore.
    - Se usi Windows, sostituisci `umbrel.local` con l'indirizzo IP del server (lo trovi nelle impostazioni di Umbrel, es. `192.168.1.50`).
 2. In OBS: **Sorgenti → + → Browser** → incolla l'URL, larghezza `1920`, altezza `1080` → OK.
+3. Dopo ogni aggiornamento dell'app: proprietà della sorgente Browser → **Aggiorna la cache della pagina corrente**.
+
+Il simulatore del Designer mostra le prove nella sua **anteprima privata**. Può inviarle anche all'overlay di OBS solo quando non sei in diretta e la DEMO è spenta. All'inizio della diretta le prove ancora visibili spariscono da sole.
 
 ## Passo 6 — Prova tutto senza andare in diretta
 1. Nel menu clicca **Impostazioni → Modalità DEMO** → **Avvia DEMO** → **Genera Pokémon**: in OBS appare il Pokémon.

@@ -1,0 +1,36 @@
+/* Cyber Pulse: pannello inclinato a due livelli, nome con effetto glitch a doppio
+   canale, bordo che pulsa e grande conto alla rovescia digitale. */
+.t-cyber-pulse .spawn { padding: 0; isolation: isolate; }
+/* Il pannello inclinato è un pseudo-elemento: il contenuto resta dritto e le
+   animazioni di entrata del pannello non annullano l'inclinazione. */
+.t-cyber-pulse .spawn::before { content: ''; position: absolute; inset: 0; z-index: -1; transform: skewX(-8deg); background: var(--panel);
+  border: var(--bw) solid var(--primary); box-shadow: 0 0 calc(30px * var(--glow)) color-mix(in srgb, var(--primary) 80%, transparent), 8px 8px 0 color-mix(in srgb, var(--secondary) 70%, transparent); border-radius: var(--radius); }
+.anim.idle.t-cyber-pulse .spawn::before { animation: cy-pulse calc(1.6s / var(--speed)) ease-in-out infinite; }
+@keyframes cy-pulse { 50% { box-shadow: 0 0 calc(50px * var(--glow)) var(--primary), 8px 8px 0 var(--secondary); } }
+.t-cyber-pulse .spawn .deco { display: block; position: absolute; inset: 0; transform: skewX(-8deg); pointer-events: none; overflow: hidden; border-radius: var(--radius); }
+.fx-scanlines.t-cyber-pulse .spawn .deco .scan { display: block; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0, calc(0.35 * var(--fx))) 0 2px, transparent 2px 4px); }
+.t-cyber-pulse .spawn .head { position: relative; display: block; margin: 0 6px; padding: 8px 16px; background: var(--primary); color: #fff; font-size: max(var(--min-small), 0.75em); letter-spacing: 0.18em; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+.t-cyber-pulse .spawn .img-wrap { height: var(--img); margin: 8px 16px 0; }
+.t-cyber-pulse .spawn img.mon { filter: drop-shadow(4px 0 0 color-mix(in srgb, var(--secondary) 70%, transparent)) drop-shadow(-4px 0 0 color-mix(in srgb, var(--primary) 70%, transparent)); }
+.t-cyber-pulse .spawn .info { position: relative; padding: 4px 16px 0; }
+.t-cyber-pulse .spawn .name { position: relative; }
+.t-cyber-pulse .spawn .name::before, .t-cyber-pulse .spawn .name::after { content: attr(data-text); position: absolute; left: 0; top: 0; opacity: calc(0.85 * var(--fx)); }
+.t-cyber-pulse .spawn .name::before { color: var(--secondary); transform: translate(2px, 0); clip-path: inset(0 0 55% 0); }
+.t-cyber-pulse .spawn .name::after { color: var(--primary); transform: translate(-2px, 0); clip-path: inset(55% 0 0 0); }
+.anim.idle.t-cyber-pulse .spawn .name::before { animation: cy-glitch calc(2.4s / var(--speed)) steps(2) infinite; }
+.anim.idle.t-cyber-pulse .spawn .name::after { animation: cy-glitch calc(2.4s / var(--speed)) steps(2) infinite reverse; }
+@keyframes cy-glitch { 0%, 88% { transform: translate(2px, 0); } 92% { transform: translate(-5px, 1px); } 96% { transform: translate(4px, -1px); } }
+.t-cyber-pulse .spawn .dex { color: var(--secondary); opacity: 1; }
+.t-cyber-pulse .spawn .meta { padding-bottom: 6px; }
+.t-cyber-pulse .badge { border-radius: 0; background: var(--secondary); color: #000; }
+.t-cyber-pulse .badge.rarity { background: var(--rc); }
+.t-cyber-pulse .badge.type { background: transparent; color: var(--text); border: 1px solid var(--secondary); }
+.t-cyber-pulse .spawn .digits { position: relative; padding: 0 16px 10px; font-size: 2.6em; line-height: 1; color: var(--secondary); text-shadow: 3px 0 0 var(--primary); }
+.t-cyber-pulse .spawn.hurry .digits { color: var(--ko); }
+.t-cyber-pulse .spawn .timer { position: relative; margin: 8px 16px 12px; height: 10px; background: color-mix(in srgb, var(--secondary) 20%, transparent); }
+.t-cyber-pulse .spawn .timer > div { background: repeating-linear-gradient(90deg, var(--secondary) 0 8px, transparent 8px 11px); }
+.t-cyber-pulse .spawn .foot { position: relative; padding: 0 16px 12px; text-transform: uppercase; }
+.t-cyber-pulse .spawn .ring .prog { stroke: var(--secondary); stroke-width: 4; stroke-linecap: butt; }
+.t-cyber-pulse .note { border-radius: 0; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); padding-left: 24px; padding-right: 24px; box-shadow: inset 0 -3px 0 var(--secondary); text-transform: uppercase; font-weight: 700; }
+.t-cyber-pulse .note.ok { box-shadow: inset 0 -3px 0 var(--ok); }
+.t-cyber-pulse .note.ko { box-shadow: inset 0 -3px 0 var(--ko); }

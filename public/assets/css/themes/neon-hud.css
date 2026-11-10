@@ -1,0 +1,39 @@
+/* Neon HUD: pannello con angoli tagliati, staffe di mira agli angoli, griglia
+   a scansione, testo monospazio maiuscolo e timer circolare al neon. */
+.t-neon-hud .spawn {
+  --cut: 18px; padding: 16px 18px 14px; text-align: left; isolation: isolate;
+  filter: drop-shadow(0 0 calc(18px * var(--glow)) color-mix(in srgb, var(--primary) 70%, transparent));
+}
+/* Fondo con angoli tagliati: solo il fondo è ritagliato, badge e sfera restano visibili. */
+.t-neon-hud .spawn::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 10%, var(--panel)), var(--panel));
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  box-shadow: inset 0 0 0 var(--bw) var(--primary), inset 0 0 calc(24px * var(--glow)) color-mix(in srgb, var(--primary) 50%, transparent); }
+.t-neon-hud .spawn .deco { display: block; position: absolute; inset: 0; pointer-events: none; }
+.t-neon-hud .spawn .deco .c1, .t-neon-hud .spawn .deco .c2, .t-neon-hud .spawn .deco .c3, .t-neon-hud .spawn .deco .c4 { display: block; position: absolute; width: 16px; height: 16px; border: 2px solid var(--secondary); }
+.t-neon-hud .spawn .deco .c1 { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
+.t-neon-hud .spawn .deco .c2 { bottom: 6px; left: 6px; border-right: 0; border-top: 0; }
+.t-neon-hud .spawn .deco .c3 { top: 50%; left: 4px; width: 6px; height: 40px; margin-top: -20px; border: 0; background: repeating-linear-gradient(180deg, var(--primary) 0 3px, transparent 3px 7px); opacity: 0.7; }
+.t-neon-hud .spawn .deco .c4 { top: 50%; right: 4px; width: 6px; height: 40px; margin-top: -20px; border: 0; background: repeating-linear-gradient(180deg, var(--primary) 0 3px, transparent 3px 7px); opacity: 0.7; }
+.fx-scanlines.t-neon-hud .spawn .deco .scan { display: block; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255, calc(0.06 * var(--fx))) 0 1px, transparent 1px 4px); }
+.anim.idle.t-neon-hud .spawn .deco .line { display: block; position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--primary), transparent); opacity: calc(0.8 * var(--fx)); animation: hud-sweep calc(3.2s / var(--speed)) linear infinite; }
+@keyframes hud-sweep { from { top: 0; } to { top: 100%; } }
+.t-neon-hud .spawn .head { color: var(--secondary); font-size: max(var(--min-small), 0.72em); letter-spacing: 0.25em; }
+.t-neon-hud .spawn .head::before { content: '▲ TARGET // '; color: var(--primary); }
+.t-neon-hud .spawn .img-wrap { width: var(--img); height: var(--img); margin: 10px auto 8px; }
+.t-neon-hud .spawn img.mon { max-width: 78%; max-height: 78%; filter: drop-shadow(0 0 calc(10px * var(--glow)) color-mix(in srgb, var(--primary) 80%, transparent)); }
+.t-neon-hud .spawn .ring .track { stroke: color-mix(in srgb, var(--primary) 25%, transparent); stroke-dasharray: 2 4; }
+.t-neon-hud .spawn .ring .prog { stroke: var(--primary); stroke-width: 3; stroke-linecap: butt; filter: drop-shadow(0 0 4px var(--primary)); }
+.t-neon-hud .spawn .name { color: var(--primary); text-shadow: 0 0 calc(12px * var(--glow)) var(--primary); }
+.t-neon-hud .spawn .dex { color: var(--muted); opacity: 1; }
+.t-neon-hud .spawn .dex::before { content: 'ID '; }
+.t-neon-hud .badge { border-radius: 0; background: transparent; color: var(--rc); border: 1px solid var(--rc); font-weight: 700; }
+.t-neon-hud .badge.type { color: var(--muted); border-color: var(--muted); }
+.t-neon-hud .spawn .timer { margin-top: 10px; height: 4px; background: color-mix(in srgb, var(--primary) 20%, transparent); }
+.t-neon-hud .spawn .timer > div { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+.t-neon-hud .spawn .digits { margin-top: 6px; font-size: 1.8em; color: var(--secondary); text-shadow: 0 0 10px var(--secondary); }
+.t-neon-hud .spawn .foot { color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.t-neon-hud .spawn.hurry .name { color: var(--ko); text-shadow: 0 0 12px var(--ko); }
+.t-neon-hud .note { border-radius: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: max(var(--min-note), 0.9em); border-left: 3px solid var(--primary); clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+.t-neon-hud .note.ok { border-left-color: var(--ok); }
+.t-neon-hud .note.ko { border-left-color: var(--ko); }

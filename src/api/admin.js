@@ -72,7 +72,7 @@ export function registerAdminRoutes(app) {
 
   // --- Storico dirette --------------------------------------------------------
   r.get('/api/admin/sessions', (ctx) => {
-    const limit = Math.min(200, Number(ctx.query.get('limit')) || 50);
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 50));
     const offset = Math.max(0, Number(ctx.query.get('offset')) || 0);
     const demo = ctx.query.get('demo') === '1' ? 1 : 0;
     return {
@@ -90,7 +90,7 @@ export function registerAdminRoutes(app) {
   r.get('/api/admin/users', (ctx) => {
     const q = `%${(ctx.query.get('q') || '').toLowerCase().replace(/[%_]/g, '')}%`;
     const demo = ctx.query.get('demo') === '1' ? 1 : 0;
-    const limit = Math.min(200, Number(ctx.query.get('limit')) || 50);
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 50));
     const offset = Math.max(0, Number(ctx.query.get('offset')) || 0);
     const where = 'WHERE u.is_demo = ? AND (u.login LIKE ? OR LOWER(u.display_name) LIKE ?)';
     return {
@@ -174,7 +174,7 @@ export function registerAdminRoutes(app) {
 
   // --- Spawn -------------------------------------------------------------------
   r.get('/api/admin/spawn', (ctx) => {
-    const limit = Math.min(200, Number(ctx.query.get('limit')) || 50);
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 50));
     return {
       settings: app.gameSettings.get('spawn'),
       engine: app.engine.status(),
@@ -235,7 +235,7 @@ export function registerAdminRoutes(app) {
     const rarity = ctx.query.get('rarity');
     const enabled = ctx.query.get('enabled');
     const gen = ctx.query.get('generation');
-    const limit = Math.min(500, Number(ctx.query.get('limit')) || 60);
+    const limit = Math.min(500, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 60));
     const offset = Math.max(0, Number(ctx.query.get('offset')) || 0);
     const where = [];
     const args = [];
@@ -488,7 +488,7 @@ export function registerAdminRoutes(app) {
   r.post('/api/admin/twitch/reconnect', async () => { await app.monitor.restart(); return app.monitor.status(); });
 
   r.get('/api/admin/twitch/events', (ctx) => {
-    const limit = Math.min(500, Number(ctx.query.get('limit')) || 100);
+    const limit = Math.min(500, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 100));
     return db().all('SELECT id, message_id, event_type, received_at, status, detail FROM twitch_events ORDER BY id DESC LIMIT ?', limit);
   });
 
@@ -603,11 +603,15 @@ export function registerAdminRoutes(app) {
   });
 
   // --- Overlay ---------------------------------------------------------------------
-  r.get('/api/admin/overlay', () => app.overlaySettings.all());
+  // Formato delle versioni precedenti: legge/modifica il tema attivo (vedi anche src/api/overlay.js).
+  r.get('/api/admin/overlay', () => app.themes.effective());
   r.put('/api/admin/overlay', async (ctx) => {
-    const out = validateOverlay(await readJson(ctx.req), app.overlaySettings);
-    for (const [k, val] of Object.entries(out)) app.overlaySettings.set(k, val);
-    const all = app.overlaySettings.all();
+    const body = await readJson(ctx.req);
+    const out = validateOverlay(body, { get: (k) => app.themes.effective()[k] });
+    // Dimensioni della sorgente OBS: informazione di configurazione, non del tema.
+    if (out.layout) app.overlaySettings.set('layout', { ...app.overlaySettings.get('layout'), width: out.layout.width, height: out.layout.height });
+    app.themes.applyLegacy(out);
+    const all = app.themes.effective();
     app.hub.overlay('settings', all);
     return all;
   });
@@ -749,7 +753,7 @@ export function registerAdminRoutes(app) {
     };
   });
 
-  r.get('/api/admin/logs', (ctx) => app.logger.recent({ level: ctx.query.get('level') || 'info', limit: Math.min(1000, Number(ctx.query.get('limit')) || 300) }).reverse());
+  r.get('/api/admin/logs', (ctx) => app.logger.recent({ level: ctx.query.get('level') || 'info', limit: Math.min(1000, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 300)) }).reverse());
 }
 
 function publicPending(p) {

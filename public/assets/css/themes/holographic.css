@@ -1,0 +1,35 @@
+/* Holographic: carta collezionabile verticale. Bordo iridescente che ruota,
+   riquadro dell'illustrazione con riflesso olografico, piede con statistiche.
+   Bordo e fondo sono pseudo-elementi dietro al contenuto (isolation), così
+   le animazioni di entrata del pannello restano libere. */
+.t-holographic .spawn { padding: var(--bw); border-radius: var(--radius); isolation: isolate;
+  box-shadow: 0 18px 40px rgba(0,0,0, calc(0.7 * var(--shadow))), 0 0 calc(40px * var(--glow)) color-mix(in srgb, var(--primary) 60%, transparent); }
+@property --holo-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.t-holographic .spawn::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: conic-gradient(from var(--holo-a), #ff8bd1, #8be9ff, #b6ff8b, #ffe58b, #c08bff, #ff8bd1); }
+.anim.idle.fx-shimmer.t-holographic .spawn::before { animation: holo-spin calc(8s / var(--speed)) linear infinite; }
+@keyframes holo-spin { to { --holo-a: 360deg; } }
+.t-holographic .spawn::after { content: ''; position: absolute; inset: var(--bw); z-index: -1; border-radius: calc(var(--radius) - var(--bw)); background: var(--panel); }
+.t-holographic .spawn > .head, .t-holographic .spawn > .img-wrap, .t-holographic .spawn > .info, .t-holographic .spawn > .timer, .t-holographic .spawn > .digits, .t-holographic .spawn > .foot { position: relative; }
+.t-holographic .spawn .head { margin: 10px 14px 0; font-size: max(var(--min-small), 0.68em); letter-spacing: 0.16em; color: var(--muted); display: flex; justify-content: space-between; }
+.t-holographic .spawn .img-wrap { margin: 8px 14px 0; height: var(--img); border-radius: calc(var(--radius) * 0.5); overflow: hidden;
+  background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rc) 40%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in srgb, var(--primary) 30%, #000), color-mix(in srgb, var(--secondary) 25%, #000));
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25); }
+.t-holographic .spawn .deco { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 2; border-radius: var(--radius); overflow: hidden; }
+.fx-shimmer.t-holographic .spawn .deco .sheen { display: block; position: absolute; inset: -50%; mix-blend-mode: color-dodge; opacity: calc(0.45 * var(--fx));
+  background: repeating-linear-gradient(115deg, rgba(255,0,180,0.4) 0 8%, rgba(0,255,255,0.4) 12% 20%, rgba(255,255,0,0.35) 24% 32%, transparent 36% 44%); }
+.anim.idle.fx-shimmer.t-holographic .spawn .deco .sheen { animation: holo-sheen calc(5s / var(--speed)) ease-in-out infinite alternate; }
+@keyframes holo-sheen { from { transform: translate(-12%, -6%); } to { transform: translate(12%, 6%); } }
+.t-holographic .spawn img.mon { filter: drop-shadow(0 10px 12px rgba(0,0,0,0.5)); }
+.t-holographic .spawn .info { margin: 10px 14px 0; text-align: left; }
+.t-holographic .spawn .name { display: flex; justify-content: space-between; align-items: baseline; }
+.t-holographic .spawn .dex { color: var(--muted); }
+.t-holographic .badge { background: rgba(255,255,255,0.14); color: var(--text); border: 1px solid rgba(255,255,255,0.3); }
+.t-holographic .badge.rarity { background: linear-gradient(135deg, var(--rc), color-mix(in srgb, var(--rc) 50%, #fff)); color: #111; border: 0; }
+.t-holographic .spawn .timer { margin: 12px 14px 0; height: 6px; border-radius: 999px; }
+.t-holographic .spawn .timer > div { background: linear-gradient(90deg, #ff8bd1, #8be9ff, #b6ff8b); }
+.t-holographic .spawn .digits { margin: 8px 14px 0; font-size: 1.4em; text-align: right; }
+.t-holographic .spawn .foot { margin: 6px 14px 12px; color: var(--muted); }
+.t-holographic .spawn > :last-child:not(.foot):not(.deco) { margin-bottom: 14px; }
+.t-holographic .spawn .ring { inset: 4%; width: 92%; height: 92%; }
+.t-holographic .spawn .ring .prog { stroke: var(--secondary); }
+.t-holographic .note { border-radius: 14px; border: 2px solid transparent; background: linear-gradient(var(--panel), var(--panel)) padding-box, linear-gradient(90deg, #ff8bd1, #8be9ff, #b6ff8b, #ffe58b) border-box; }

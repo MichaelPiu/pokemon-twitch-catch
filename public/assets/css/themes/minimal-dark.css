@@ -1,0 +1,27 @@
+/* Minimal Dark: barra orizzontale compatta. Immagine a sinistra, testo a destra,
+   linea del tempo sottilissima sul bordo inferiore. Nessun ornamento. */
+.t-minimal-dark .spawn {
+  display: grid; grid-template-columns: var(--img) 1fr; grid-template-rows: auto auto auto; column-gap: 14px; align-items: center;
+  padding: 10px 16px 12px 10px; background: var(--panel); border-radius: var(--radius);
+  border: var(--bw) solid color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: 0 12px 32px rgba(0,0,0, calc(0.8 * var(--shadow)));
+}
+.t-minimal-dark .spawn .head { grid-column: 2; color: var(--muted); font-size: max(var(--min-small), 0.7em); letter-spacing: 0.14em; }
+.t-minimal-dark .spawn .img-wrap { grid-column: 1; grid-row: 1 / span 3; width: var(--img); height: var(--img); background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: calc(var(--radius) * 0.7); }
+.t-minimal-dark .spawn img.mon { max-width: 88%; max-height: 88%; }
+.t-minimal-dark .spawn .info { grid-column: 2; min-width: 0; }
+.t-minimal-dark .spawn .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-minimal-dark .spawn .dex { color: var(--muted); opacity: 1; font-size: max(var(--min-small), 0.8em); }
+.t-minimal-dark .spawn .meta { margin-top: 4px; }
+.t-minimal-dark .badge { background: transparent; color: var(--muted); border: 1px solid color-mix(in srgb, var(--text) 25%, transparent); font-weight: 600; letter-spacing: 0.08em; }
+.t-minimal-dark .badge.rarity { color: var(--rc); border-color: color-mix(in srgb, var(--rc) 60%, transparent); }
+.t-minimal-dark .spawn .timer { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: transparent; border-radius: 0 0 var(--radius) var(--radius); }
+.t-minimal-dark .spawn .timer > div { background: var(--primary); }
+.t-minimal-dark .spawn .foot { grid-column: 2; margin-top: 2px; color: var(--muted); opacity: 1; justify-content: flex-start; gap: 16px; }
+.t-minimal-dark .spawn .digits { grid-column: 2; font-size: 1.1em; color: var(--muted); }
+.t-minimal-dark .spawn .ring { inset: 4%; width: 92%; height: 92%; }
+.t-minimal-dark .spawn .ring .prog { stroke: var(--primary); stroke-width: 2; }
+.t-minimal-dark .note { border-radius: 10px; font-weight: 500; font-size: max(var(--min-note), 0.95em); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); }
+.t-minimal-dark .note b { color: var(--text); font-weight: 700; }
+.t-minimal-dark .note.ok { box-shadow: inset 3px 0 0 var(--ok); }
+.t-minimal-dark .note.ko { box-shadow: inset 3px 0 0 var(--ko); }

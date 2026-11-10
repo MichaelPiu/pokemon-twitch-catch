@@ -3,12 +3,28 @@
 // delegati ad authorizeAdmin).
 import { WebSocketServer } from 'ws';
 
-const STATUS_TEXT = { 401: 'Unauthorized', 403: 'Forbidden', 421: 'Misdirected Request' };
+const STATUS_TEXT = { 400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 421: 'Misdirected Request', 503: 'Service Unavailable' };
+
+// Limiti del canale pubblico dell'overlay: abbondanti per molte sorgenti OBS
+// (una per scena), anteprime del Designer e schermi in rete locale, ma
+// sufficienti a impedire che un client esaurisca la memoria aprendo
+// connessioni senza fine.
+export const OVERLAY_LIMITS = { max: 100, perIp: 30 };
+
+function reject(socket, code) {
+  try {
+    socket.write(`HTTP/1.1 ${code} ${STATUS_TEXT[code] || 'Forbidden'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  } catch { /* socket già chiuso */ }
+  socket.destroy();
+}
 
 export class WsHub {
-  constructor({ authorizeAdmin, log }) {
+  constructor({ authorizeAdmin, log, clientIp = (req) => req.socket?.remoteAddress || '', overlayLimits = {} }) {
     this.authorizeAdmin = authorizeAdmin;
     this.log = log;
+    this.clientIp = clientIp;
+    this.overlayLimits = { ...OVERLAY_LIMITS, ...overlayLimits };
+    this.rejected = { overlayLimit: 0, malformed: 0 };
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
     this.clients = { overlay: new Set(), admin: new Set() };
     this.snapshotProviders = { overlay: null, admin: null };
@@ -18,24 +34,46 @@ export class WsHub {
 
   setSnapshot(channel, fn) { this.snapshotProviders[channel] = fn; }
 
+  // Nessuna eccezione deve uscire dal gestore 'upgrade' del server HTTP: una
+  // richiesta malformata riceve 400 e il socket viene sempre chiuso.
   handleUpgrade(req, socket, head) {
+    try {
+      this.upgrade(req, socket, head);
+    } catch (e) {
+      this.rejected.malformed++;
+      this.log?.warn?.('Connessione WebSocket rifiutata: richiesta non valida', { message: e.message });
+      reject(socket, 400);
+    }
+  }
+
+  upgrade(req, socket, head) {
     const url = new URL(req.url, 'http://x');
     let channel = null;
-    if (url.pathname === '/ws/overlay') channel = 'overlay';
-    else if (url.pathname === '/ws/admin') {
-      const auth = this.authorizeAdmin ? this.authorizeAdmin(req) : { ok: false, status: 401 };
-      if (!auth.ok) {
-        const code = auth.status || 401;
-        socket.write(`HTTP/1.1 ${code} ${STATUS_TEXT[code] || 'Forbidden'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
-        socket.destroy();
-        return;
+    let ip = '';
+    if (url.pathname === '/ws/overlay') {
+      channel = 'overlay';
+      ip = this.clientIp(req);
+      const { max, perIp } = this.overlayLimits;
+      const set = this.clients.overlay;
+      let same = 0;
+      for (const ws of set) if (ws.clientIp === ip) same++;
+      if (set.size >= max || same >= perIp) {
+        this.rejected.overlayLimit++;
+        if (this.rejected.overlayLimit === 1 || this.rejected.overlayLimit % 100 === 0) {
+          this.log?.warn?.('Connessione overlay rifiutata: limite raggiunto', { total: set.size, fromIp: same, max, perIp, rejected: this.rejected.overlayLimit });
+        }
+        return reject(socket, 503);
       }
+    } else if (url.pathname === '/ws/admin') {
+      const auth = this.authorizeAdmin ? this.authorizeAdmin(req) : { ok: false, status: 401 };
+      if (!auth.ok) return reject(socket, auth.status || 401);
       channel = 'admin';
     } else {
       socket.destroy();
       return;
     }
     this.wss.handleUpgrade(req, socket, head, (ws) => {
+      ws.clientIp = ip;
       ws.isAlive = true;
       ws.on('pong', () => { ws.isAlive = true; });
       ws.on('message', () => { /* i client non inviano comandi via WS */ });

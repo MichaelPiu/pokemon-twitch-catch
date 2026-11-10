@@ -270,4 +270,34 @@ UPDATE capture_attempts SET source = 'demo' WHERE is_demo = 1;
 CREATE INDEX idx_attempts_pending_status ON capture_attempts(desired_status) WHERE desired_status IS NOT NULL;
 `,
   },
+  {
+    id: 3,
+    name: 'overlay_themes',
+    sql: `
+-- Temi dell'overlay: preset integrati (slug valorizzato) e temi personalizzati.
+-- original_config: valori a cui riportare il tema con "Ripristina".
+CREATE TABLE overlay_themes (
+  id INTEGER PRIMARY KEY,
+  slug TEXT UNIQUE,
+  name TEXT NOT NULL,
+  base TEXT NOT NULL,
+  is_builtin INTEGER NOT NULL DEFAULT 0,
+  config TEXT NOT NULL,
+  original_config TEXT NOT NULL,
+  rev INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+`,
+  },
 ];
+
+// Ultima versione di schema conosciuta da questo codice. Un database (o un
+// backup) con una versione più alta è stato creato da una versione più recente
+// dell'app e non viene aperto né ripristinato: potrebbe essere danneggiato.
+export const LATEST_SCHEMA = Math.max(...migrations.map((m) => m.id));
+
+export function schemaTooNewMessage(found, what = 'Il database') {
+  return `${what} usa lo schema v${found}, creato da una versione più recente di Live Catch: questa versione supporta fino allo schema v${LATEST_SCHEMA}. `
+    + 'Aggiorna l\'app oppure usa un backup compatibile.';
+}

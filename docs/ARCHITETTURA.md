@@ -82,7 +82,7 @@ Rifiuti possibili (`reject_reason`): `offline`, `paused`, `no_spawn`, `late`, `e
 
 ## Database (`src/database/migrations.js`)
 
-Tabelle principali: `twitch_users`, `pokemon`, `user_pokemon`, `spawn_history`, `capture_attempts`, `twitch_rewards`, `twitch_events`, `stream_sessions`, `game_settings`, `admin_settings`, `command_settings`, `overlay_settings`, `user_bans`, `backup_history`, più `ball_types`, `admin_users`, `admin_sessions`, `state_transitions`, `schema_migrations`.
+Tabelle principali: `twitch_users`, `pokemon`, `user_pokemon`, `spawn_history`, `capture_attempts`, `twitch_rewards`, `twitch_events`, `stream_sessions`, `game_settings`, `admin_settings`, `command_settings`, `overlay_settings`, `overlay_themes`, `user_bans`, `backup_history`, più `ball_types`, `admin_users`, `admin_sessions`, `state_transitions`, `schema_migrations`.
 
 Ogni riga di gioco ha il flag `is_demo`: tutte le statistiche filtrano `is_demo = 0`. Ogni spawn e tentativo è legato a `session_id`.
 
@@ -113,3 +113,47 @@ Migrazioni: array ordinato e immutabile; all'avvio vengono applicate solo quelle
 ## Perché non FastAPI/React/PostgreSQL
 
 Lo stack suggerito è valido, ma su un server domestico ogni componente in più è qualcosa che può rompersi durante un aggiornamento. Con Node.js 24 il database SQLite è integrato nel runtime e la dashboard non richiede build: l'immagine contiene runtime + codice + una libreria (`ws`). Il codice resta modulare (una cartella per dominio) e la migrazione verso un frontend con build o PostgreSQL resta possibile senza toccare la logica di gioco.
+
+## Overlay Themes
+
+- **`public/assets/js/overlay/theme-core.js`**: modulo condiviso, senza dipendenze, usato sia dal server sia dal browser. Contiene:
+  - preset, stili grafici e font;
+  - schema della configurazione e sanificazione (`sanitizeConfig`);
+  - importazione ed esportazione JSON;
+  - `mergeConfig`, l'unione dei gruppi di configurazione, usata anche dal server;
+  - `fontStack`, che mette tra virgolette doppie un nome di font già ripulito, quindi anche un valore non validato non può uscire dalla regola CSS;
+  - `effectiveSettings`, che mantiene i campi letti dagli overlay precedenti (`layout`, `colors`, `animations`, `notifications`, `elements`, `font`) e aggiunge `theme`.
+- **`src/overlay/themes.js` (`ThemeStore`)**:
+  - tabella `overlay_themes` (migrazione 3): i preset sono creati e aggiornati all'avvio; `original_config` è il punto di ritorno di "Ripristina";
+  - il tema attivo è in `overlay_settings.activeThemeId`;
+  - **modifiche concorrenti**:
+    - `PUT /api/admin/overlay/themes/:id` richiede la revisione `rev` su cui si è lavorato;
+    - l'`UPDATE` usa `WHERE id = ? AND rev = ?`, quindi il controllo e la scrittura avvengono nella stessa istruzione;
+    - se la revisione non corrisponde il server risponde 409 con `details.current` (la versione salvata);
+    - `force: true` sovrascrive solo come scelta esplicita del Designer;
+  - al primo avvio dopo l'aggiornamento, le vecchie impostazioni dell'overlay diventano le modifiche del tema *Classico*, che resta attivo.
+- **`src/overlay/simulator.js` (`OverlaySimulator`)**:
+  - eventi finti nello stesso formato del motore, con `sim: true` e id negativi;
+  - nel database fa solo `SELECT` (Pokémon e Poké Ball);
+  - lo spawn che arriva dal browser per proseguire una simulazione (`cleanSpawn`) viene accettato solo se ogni campo è valido (id negativo, tipi e rarità noti, immagine locale o PokéAPI, date ISO, tentativi interi); altrimenti la simulazione riparte da uno spawn nuovo;
+  - destinazione `preview` (predefinita: risposta HTTP, solo anteprima privata) oppure `obs` (broadcast sul canale overlay);
+  - **overlay pubblico in uso** (`publicOverlayBusy`): stato `LIVE` o `PAUSED` della macchina a stati, oppure motore con modalità `live` o `demo`, anche sospesa. In questi casi `obs` viene rifiutato con 409, sia dall'API sia chiamando `sendToObs` direttamente;
+  - **pulizia** (`purge`): alla transizione verso `LIVE` o `PAUSED`, e a ogni stato del motore con una modalità attiva, cancella gli invii programmati. Se sugli overlay c'erano elementi simulati invia `sim_clear`. Anche ogni invio programmato ricontrolla lo stato prima di partire;
+  - ogni invio all'overlay pubblico e ogni pulizia sono scritti nel log (`[overlay]`).
+- **`src/api/overlay.js`**: rotte `/api/admin/overlay/themes…` e `/api/admin/overlay/simulate`, protette come il resto dell'area admin (sessione, CSRF, Origin/Host). `GET`/`PUT /api/admin/overlay` restano compatibili e agiscono sul tema attivo.
+- **Overlay (`public/assets/js/overlay.js`)**:
+  - tela logica 1920×1080 scalata con `--vs`;
+  - il foglio `public/assets/css/themes/<stile>.css` viene caricato al cambio di stile e il precedente rimosso;
+  - i valori del tema diventano variabili CSS;
+  - stesso protocollo WebSocket (`snapshot`, `settings`, `spawn`, `throw`, `despawn`, `state`, `clear`) più `notice` e `sim_clear`, che gli overlay precedenti ignorano;
+  - **coda degli eventi animati** (`public/assets/js/overlay/event-queue.js`):
+    - `spawn`, `throw` e `despawn` vengono eseguiti in ordine;
+    - con un arretrato pari almeno alla metà del limite (`animation.queueLimit`, 2–50, predefinito 6) le attese sono 3 volte più brevi;
+    - con un arretrato pari almeno al limite non ci sono attese e l'animazione della ball viene saltata;
+    - ogni evento ha un tempo massimo di 8 s;
+    - nessun evento viene scartato: tentativi ed esiti restano esatti;
+  - `settings` **non** passa dalla coda: il tema si applica subito e lo spawn visibile viene ridisegnato con il contatore dei tentativi corrente. Con cambi rapidi vince l'ultimo foglio di stile richiesto;
+  - `sim_clear`, `state` con `active: true` e `clear` con `sim: true` tolgono solo ciò che è simulato: eventi in coda con `sim`, spawn simulato, notifiche simulate. `snapshot`, `state` con `active: false` e `clear` reale azzerano tutto;
+  - un'animazione già partita si ferma se nel frattempo l'overlay è stato azzerato o gli elementi simulati rimossi (contatori di epoca);
+  - notifiche: con la coda piena viene scartata la meno importante più vecchia (le catture reali restano); con più notifiche in attesa di quante se ne possano mostrare, ognuna resta visibile metà del tempo;
+  - con `?preview=1` non si collega al server e riceve bozze ed eventi via `postMessage` dalla dashboard (stessa origine).

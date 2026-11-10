@@ -7,13 +7,17 @@ export class HttpError extends Error {
   }
 }
 
+// Cookie della richiesta. Un valore con codifica percentuale non valida (es.
+// lasciato da un'altra app sullo stesso host, come umbrel.local) viene ignorato:
+// non deve mai bloccare le API o le connessioni WebSocket.
 export function parseCookies(header = '') {
   const out = {};
-  for (const part of header.split(';')) {
+  for (const part of String(header || '').split(';')) {
     const i = part.indexOf('=');
     if (i < 0) continue;
     const k = part.slice(0, i).trim();
-    if (k) out[k] = decodeURIComponent(part.slice(i + 1).trim());
+    if (!k) continue;
+    try { out[k] = decodeURIComponent(part.slice(i + 1).trim()); } catch { /* cookie malformato: ignorato */ }
   }
   return out;
 }
@@ -72,7 +76,9 @@ export class Router {
       if (!m) continue;
       if (r.method !== method) { allowed = true; continue; }
       const params = {};
-      r.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
+      r.keys.forEach((k, i) => {
+        try { params[k] = decodeURIComponent(m[i + 1]); } catch { throw new HttpError(400, 'Indirizzo non valido'); }
+      });
       return { route: r, params };
     }
     return allowed ? { methodNotAllowed: true } : null;

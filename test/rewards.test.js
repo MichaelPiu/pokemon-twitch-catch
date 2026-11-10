@@ -148,7 +148,8 @@ describe('Channel Points: pausa, riconciliazione e riconnessione', () => {
 
   test('aggiornamento dello stato fallito: registrato e ritentato; 404 non viene ritentato', async () => {
     await startOffline();
-    tw.failRedemptionUpdates = 1;
+    // Il client ritenta da solo i 5xx (2 ritentativi): il guasto deve durare oltre.
+    tw.failRedemptionUpdates = 3;
     tw.queue.push(queuedRedemption({ id: 'r-err', rewardId: MANAGED }));
     es.notify('channel.channel_points_custom_reward_redemption.add', redemption({ id: 'r-err', rewardId: MANAGED }));
     await waitFor(() => attempt('r-err')?.status_error, { message: 'errore registrato' });

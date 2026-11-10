@@ -35,6 +35,14 @@ export function loadConfig(env = process.env) {
       oauthBase: env.TWITCH_OAUTH_BASE || 'https://id.twitch.tv/oauth2',
       eventsubUrl: env.TWITCH_EVENTSUB_URL || 'wss://eventsub.wss.twitch.tv/ws',
       backoffMs: int(env.TWITCH_EVENTSUB_BACKOFF_MS, 1000),
+      // Chiamate HTTP a Helix e id.twitch.tv: timeout e ritentativi sugli errori
+      // temporanei (rete, timeout, 429, 5xx). Vedi src/twitch/http.js.
+      http: {
+        timeoutMs: Math.max(100, int(env.TWITCH_HTTP_TIMEOUT_MS, 10000)),
+        retries: Math.max(0, int(env.TWITCH_HTTP_RETRIES, 2)),
+        baseDelayMs: Math.max(1, int(env.TWITCH_HTTP_RETRY_MS, 500)),
+        maxDelayMs: 15000,
+      },
     },
     pokeapiBase: env.POKEAPI_BASE || 'https://pokeapi.co/api/v2',
     // Se "true" i cookie di sessione vengono marcati Secure (solo dietro HTTPS).
@@ -48,6 +56,11 @@ export function loadConfig(env = process.env) {
     adminHosts: env.ADMIN_HOSTS || '',
     // Origini aggiuntive ammesse per la dashboard (es. https://livecatch.example.lan).
     allowedOrigins: env.ALLOWED_ORIGINS || '',
+    // Connessioni WebSocket pubbliche dell'overlay (OBS, anteprime): totali e per IP.
+    wsOverlayLimits: {
+      max: Math.max(1, int(env.WS_OVERLAY_MAX_CONNECTIONS, 100)),
+      perIp: Math.max(1, int(env.WS_OVERLAY_MAX_PER_IP, 30)),
+    },
     logLevel: env.LOG_LEVEL || 'info',
     disableTimers: env.DISABLE_TIMERS === 'true',
   };

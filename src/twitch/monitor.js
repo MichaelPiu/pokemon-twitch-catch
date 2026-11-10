@@ -25,7 +25,9 @@ export class TwitchMonitor {
     this.offlineCount = 0;
     this.lastOnlineEventAt = 0;
     this.lastPoll = null;
+    this.knownLive = null; // ultimo stato della diretta comunicato da Twitch: { live, at }
     this.lastError = null;
+    this.transientIssue = null;
     this.subscriptions = [];
     this.broadcaster = null;
     this.eventsReceived = 0;
@@ -57,6 +59,7 @@ export class TwitchMonitor {
     this.started = true;
     this.authFailed = false;
     if (!this.configured()) {
+      this.knownLive = null;
       this.sm.goTo(STATES.ERROR, 'not_configured');
       this.lastError = 'Twitch non configurato: completa la procedura guidata nella sezione Twitch';
       return;
@@ -100,6 +103,10 @@ export class TwitchMonitor {
   }
 
   fail(err) {
+    // Problema temporaneo (rete, timeout, 429, 5xx): nessuna revoca e nessun
+    // cambio di stato; il gioco continua e il controllo successivo riprova.
+    if (err.transient && !err.authInvalid) return this.noteTransient(err);
+    this.transientIssue = null;
     this.lastError = err.message;
     this.log.error('Errore Twitch', { message: err.message });
     if (err.authInvalid || err.status === 401) {
@@ -109,6 +116,31 @@ export class TwitchMonitor {
     if (err.authInvalid || err.status === 401 || err.status === 403) {
       this.sm.goTo(STATES.ERROR, 'auth_error');
     }
+  }
+
+  // Il canale risulta in diretta secondo l'ultima informazione ricevuta da
+  // Twitch (API /streams o evento stream.online/offline), anche se il gioco è
+  // fermo per un errore o una connessione in corso.
+  // L'informazione vale 30 minuti: oltre, senza conferme, lo stato è ignoto.
+  channelLive(now = Date.now()) {
+    return !!this.knownLive?.live && now - Date.parse(this.knownLive.at) < 30 * 60 * 1000;
+  }
+
+  setKnownLive(live) { this.knownLive = { live: !!live, at: new Date().toISOString() }; }
+
+  noteTransient(err) {
+    const first = !this.transientIssue;
+    this.transientIssue = { since: this.transientIssue?.since || new Date().toISOString(), at: new Date().toISOString(), message: err.message, status: err.status || null };
+    this.lastError = `Problema temporaneo di Twitch: ${err.message}. Il gioco continua, nuovo tentativo automatico.`;
+    if (first) this.log.warn('Problema temporaneo di Twitch', { message: err.message, http: err.status });
+  }
+
+  // Twitch ha risposto di nuovo correttamente: rimuove l'avviso temporaneo.
+  clearTransient() {
+    if (!this.transientIssue) return;
+    this.log.info('Twitch di nuovo raggiungibile', { since: this.transientIssue.since });
+    this.transientIssue = null;
+    this.lastError = null;
   }
 
   // Twitch revoca le sottoscrizioni quando il canale scollega l'app o il token
@@ -207,6 +239,7 @@ export class TwitchMonitor {
     try {
       stream = await this.helix.getStream(this.broadcaster.userId);
       this.lastPoll = { at: new Date().toISOString(), live: !!stream, ok: true };
+      this.setKnownLive(stream);
     } catch (e) {
       this.lastPoll = { at: new Date().toISOString(), ok: false, error: e.message };
       this.fail(e);
@@ -260,11 +293,13 @@ export class TwitchMonitor {
     try {
       stream = await this.helix.getStream(this.broadcaster.userId);
       this.lastPoll = { at: new Date().toISOString(), live: !!stream, ok: true };
+      this.setKnownLive(stream);
     } catch (e) {
       this.lastPoll = { at: new Date().toISOString(), ok: false, error: e.message };
       this.fail(e);
       return;
     }
+    this.clearTransient();
     if (this.authFailed) {
       // Il rinnovo del token è tornato a funzionare: le sottoscrizioni potrebbero
       // essere state revocate, quindi si ricollega EventSub da capo.
@@ -303,20 +338,36 @@ export class TwitchMonitor {
     for (const role of ['broadcaster', 'bot']) {
       const t = this.creds.getToken(role);
       if (!t?.accessToken) continue;
-      const info = await this.oauth.validate(t.accessToken).catch(() => undefined);
-      if (info === undefined) continue; // rete non disponibile: riprova più tardi
-      if (info) { this.creds.clearAuthError(role); continue; }
-      if (!info) {
-        try {
-          await this.oauth.refresh(role);
-        } catch (e) {
-          if (role === 'bot') {
-            // Il bot serve solo per la chat: il gioco continua e risponde l'account del canale.
-            this.creds.markInvalid('bot', e.message);
-            this.log.error('Token del bot non più valido: ricollega il bot. Nel frattempo risponde l\'account del canale', { message: e.message });
-          } else {
-            this.fail(Object.assign(e, { authInvalid: true }));
-          }
+      let info;
+      try {
+        info = await this.oauth.validate(t.accessToken);
+      } catch (e) {
+        // Esito sconosciuto (rete, timeout, 429, 5xx): nessuna conclusione sul token.
+        if (role === 'broadcaster') this.noteTransient(e);
+        else this.log.warn('Verifica del token del bot non conclusa: nuovo tentativo più tardi', { message: e.message });
+        continue;
+      }
+      if (info) {
+        this.creds.clearAuthError(role);
+        if (role === 'broadcaster') this.clearTransient();
+        continue;
+      }
+      // Token di accesso non più valido (401): si rinnova, passando dal rinnovo
+      // condiviso con le richieste Helix (un solo rinnovo alla volta).
+      try {
+        await this.helix.refresh(role);
+        if (role === 'broadcaster') this.clearTransient();
+      } catch (e) {
+        if (!e.authInvalid) {
+          // Rinnovo non concluso per un problema temporaneo: il token non è revocato.
+          if (role === 'broadcaster') this.noteTransient(e);
+          else this.log.warn('Rinnovo del token del bot non concluso: nuovo tentativo più tardi', { message: e.message });
+        } else if (role === 'bot') {
+          // Il bot serve solo per la chat: il gioco continua e risponde l'account del canale.
+          this.creds.markInvalid('bot', e.message);
+          this.log.error('Token del bot non più valido: ricollega il bot. Nel frattempo risponde l\'account del canale', { message: e.message });
+        } else {
+          this.fail(e); // Twitch ha rifiutato il refresh token (400/401): revoca reale
         }
       }
     }
@@ -367,10 +418,12 @@ export class TwitchMonitor {
         if (ev.type && ev.type !== 'live') return { detail: `ignorato (${ev.type})` };
         this.lastOnlineEventAt = Date.now();
         this.offlineCount = 0;
+        this.setKnownLive(true);
         this.goLive({ broadcastId: ev.id, startedAt: ev.started_at }, 'stream.online');
         return { detail: 'live' };
       case 'stream.offline':
         this.offlineCount = 99;
+        this.setKnownLive(false);
         this.goOffline('stream.offline');
         return { detail: 'offline' };
       case 'channel.channel_points_custom_reward_redemption.add':
@@ -438,6 +491,7 @@ export class TwitchMonitor {
       subscriptions: this.subscriptions,
       lastPoll: this.lastPoll,
       lastError: this.lastError,
+      transientIssue: this.transientIssue || null,
       eventsReceived: this.eventsReceived,
       chat: this.chat?.stats(),
       reconcile: this.reconciler.last,

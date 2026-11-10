@@ -46,13 +46,38 @@ export class FakeTwitch {
     this.calls = [];
     // Token revocati (access o refresh): Helix e /validate rispondono 401, il rinnovo 400.
     this.revokedTokens = new Set();
+    // Guasti temporanei programmati (prima corrispondenza per prefisso del percorso):
+    // { path, status, headers, network: true, hang: true, times } — times: -1 = sempre.
+    this.faults = [];
     this.fetch = this.fetch.bind(this);
+  }
+
+  fault(path, opts = {}) { this.faults.push({ path, times: -1, status: 503, ...opts }); return this; }
+
+  applyFault(u, opts) {
+    const f = this.faults.find((x) => u.pathname.startsWith(x.path) && x.times !== 0);
+    if (!f) return null;
+    if (f.times > 0) f.times--;
+    f.hits = (f.hits || 0) + 1;
+    if (f.hang) {
+      // Richiesta che non risponde mai: termina solo con l'AbortSignal del client.
+      return new Promise((_, reject) => {
+        const sig = opts.signal;
+        if (!sig) return;
+        if (sig.aborted) reject(sig.reason);
+        sig.addEventListener('abort', () => reject(sig.reason), { once: true });
+      });
+    }
+    if (f.network) return Promise.reject(new TypeError('fetch failed'));
+    return Promise.resolve(new Response(JSON.stringify({ status: f.status, message: 'fault' }), { status: f.status, headers: { 'Content-Type': 'application/json', ...(f.headers || {}) } }));
   }
 
   async fetch(url, opts = {}) {
     const u = new URL(String(url));
     const method = (opts.method || 'GET').toUpperCase();
     this.calls.push(`${method} ${u.pathname}`);
+    const faulted = this.applyFault(u, opts);
+    if (faulted) return faulted;
     const body = opts.body && typeof opts.body === 'string' && opts.body.startsWith('{') ? JSON.parse(opts.body) : opts.body;
     const res = (status, data) => new Response(data === undefined ? '' : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
     if (u.pathname.startsWith('/oauth2')) {
@@ -130,7 +155,9 @@ export class FakeEventSub {
     this.sockets = new Set();
     this.sessionCounter = 0;
     this.msgCounter = 0;
+    this.refuse = false; // true: le nuove connessioni vengono chiuse subito (Twitch irraggiungibile)
     this.wss.on('connection', (ws) => {
+      if (this.refuse) { ws.terminate(); return; }
       this.sockets.add(ws);
       ws.on('close', () => this.sockets.delete(ws));
       ws.send(JSON.stringify({
@@ -185,6 +212,7 @@ export async function makeApp({ dir = tempDir(), twitch = null, eventsub = null,
     TWITCH_OAUTH_BASE: 'http://twitch.test/oauth2',
     TWITCH_EVENTSUB_URL: eventsub?.url || 'ws://127.0.0.1:1',
     TWITCH_EVENTSUB_BACKOFF_MS: '30',
+    TWITCH_HTTP_RETRY_MS: '5', // ritentativi rapidi sugli errori temporanei di Twitch
     POKEAPI_BASE: 'http://pokeapi.test/api/v2',
     ...env,
   });

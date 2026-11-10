@@ -149,8 +149,26 @@ export function handleRedemptionUpdate(db, settings, { redemptionId, status }) {
     if (!a) return { found: false };
     db.run('UPDATE capture_attempts SET redemption_status = ? WHERE id = ?', String(status).toUpperCase(), a.id);
     let revoked = false;
-    if (String(status).toLowerCase() === 'canceled' && a.user_pokemon_id && settings.capture.revokeOnCancel) {
+    if (String(status).toLowerCase() === 'canceled' && a.outcome === 'caught' && a.user_pokemon_id && settings.capture.revokeOnCancel) {
       db.run('DELETE FROM user_pokemon WHERE id = ?', a.user_pokemon_id);
+      // Il tentativo viene annullato (punti restituiti, Pokémon rimosso): esce dalle
+      // statistiche come un riscatto rifiutato, così contatori di sessione e spawn,
+      // classifiche e grafici restano coerenti con le collezioni.
+      const upd = db.run(
+        `UPDATE capture_attempts SET outcome = 'rejected', reject_reason = 'canceled', user_pokemon_id = NULL,
+           desired_status = CASE WHEN desired_status IS NULL THEN NULL ELSE 'CANCELED' END
+         WHERE id = ? AND outcome = 'caught'`, a.id);
+      if (upd.changes === 1) {
+        if (a.spawn_id) db.run('UPDATE spawn_history SET attempts = MAX(0, attempts - 1), captures = MAX(0, captures - 1) WHERE id = ?', a.spawn_id);
+        if (a.session_id) {
+          db.run(`UPDATE stream_sessions SET
+            attempts = (SELECT COUNT(*) FROM capture_attempts WHERE session_id = ?1 AND outcome != 'rejected'),
+            captures = (SELECT COUNT(*) FROM capture_attempts WHERE session_id = ?1 AND outcome = 'caught'),
+            failures = (SELECT COUNT(*) FROM capture_attempts WHERE session_id = ?1 AND outcome = 'failed'),
+            participants = (SELECT COUNT(DISTINCT user_id) FROM capture_attempts WHERE session_id = ?1 AND outcome != 'rejected')
+            WHERE id = ?1`, a.session_id);
+        }
+      }
       revoked = true;
     }
     return { found: true, revoked, attempt: a };

@@ -1,0 +1,39 @@
+/* Gradient Motion: forme morbide con gradiente che scorre e "macchie" di colore
+   in movimento dietro al Pokémon; notifiche a pillola con gradiente. */
+.t-gradient-motion .spawn {
+  padding: 18px 20px 16px; text-align: center; border-radius: var(--radius); isolation: isolate;
+  box-shadow: 0 20px 50px rgba(0,0,0, calc(0.6 * var(--shadow))), 0 0 calc(60px * var(--glow)) color-mix(in srgb, var(--secondary) 60%, transparent);
+  outline: var(--bw) solid rgba(255,255,255,0.35); outline-offset: calc(var(--bw) * -1);
+}
+/* Gradiente in movimento e velatura sono pseudo-elementi dietro al contenuto. */
+.t-gradient-motion .spawn::before { content: ''; position: absolute; inset: 0; z-index: -2; border-radius: inherit;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 85%, transparent), color-mix(in srgb, var(--secondary) 85%, transparent), color-mix(in srgb, var(--primary) 70%, var(--secondary)));
+  background-size: 240% 240%; }
+.anim.idle.t-gradient-motion .spawn::before { animation: gm-flow calc(9s / var(--speed)) ease-in-out infinite; }
+@keyframes gm-flow { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.t-gradient-motion .spawn::after { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--panel); border-radius: inherit; pointer-events: none; }
+.t-gradient-motion .spawn > .head, .t-gradient-motion .spawn > .img-wrap, .t-gradient-motion .spawn > .info, .t-gradient-motion .spawn > .timer, .t-gradient-motion .spawn > .digits, .t-gradient-motion .spawn > .foot { position: relative; z-index: 1; }
+.t-gradient-motion .spawn .deco { display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; overflow: hidden; }
+.fx-particles.t-gradient-motion .spawn .deco .blob1, .fx-particles.t-gradient-motion .spawn .deco .blob2 { display: block; position: absolute; width: 55%; aspect-ratio: 1; border-radius: 50%; filter: blur(28px); opacity: calc(0.75 * var(--fx)); }
+.t-gradient-motion .spawn .deco .blob1 { background: var(--primary); left: -10%; top: 5%; }
+.t-gradient-motion .spawn .deco .blob2 { background: var(--secondary); right: -10%; top: 25%; }
+.anim.idle.t-gradient-motion .spawn .deco .blob1 { animation: gm-blob calc(7s / var(--speed)) ease-in-out infinite alternate; }
+.anim.idle.t-gradient-motion .spawn .deco .blob2 { animation: gm-blob calc(9s / var(--speed)) ease-in-out infinite alternate-reverse; }
+@keyframes gm-blob { to { transform: translate(30%, 20%) scale(1.2); } }
+.t-gradient-motion .spawn .head { color: var(--text); opacity: 0.9; font-size: max(var(--min-small), 0.75em); }
+.t-gradient-motion .spawn .img-wrap { width: var(--img); height: var(--img); margin: 18px auto 12px; }
+.t-gradient-motion .spawn img.mon { filter: drop-shadow(0 10px 14px rgba(0,0,0,0.35)); }
+.t-gradient-motion .spawn .meta { justify-content: center; }
+.t-gradient-motion .badge { background: rgba(255,255,255,0.9); color: #222; }
+.t-gradient-motion .badge.type { background: rgba(255,255,255,0.22); color: var(--text); }
+.t-gradient-motion .spawn .timer { margin-top: 12px; height: 10px; border-radius: 999px; background: rgba(255,255,255,0.2); }
+.t-gradient-motion .spawn .timer > div { border-radius: 999px; background: linear-gradient(90deg, #fff, color-mix(in srgb, var(--secondary) 40%, #fff)); }
+.t-gradient-motion .spawn .digits { margin-top: 8px; font-size: 1.8em; }
+.t-gradient-motion .spawn .ring .track { stroke: rgba(255,255,255,0.25); }
+.t-gradient-motion .spawn .ring .prog { stroke: #fff; stroke-width: 4; }
+.t-gradient-motion .note { border-radius: 999px; padding: 10px 22px; background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, #000), color-mix(in srgb, var(--secondary) 85%, #000)); }
+.t-gradient-motion .note b { color: #fff; }
+.t-gradient-motion .note.ok { background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 70%, #000), color-mix(in srgb, var(--secondary) 80%, #000)); }
+.t-gradient-motion .note.ko { background: linear-gradient(90deg, color-mix(in srgb, var(--ko) 70%, #000), color-mix(in srgb, var(--primary) 70%, #000)); }
+.anim.t-gradient-motion .note { animation-name: in-zoom; }
+.anim.t-gradient-motion .note.out { animation-name: out-shrink; }

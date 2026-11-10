@@ -1,0 +1,28 @@
+/* Minimal Light: impaginazione editoriale su carta chiara. Etichetta in maiuscoletto,
+   titolo serif grande, filetti sottili, timer numerico in colonna. */
+.t-minimal-light .spawn {
+  padding: 18px 20px 16px; background: var(--panel); color: var(--text); border-radius: var(--radius);
+  border: var(--bw) solid color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow: 0 18px 40px rgba(0,0,0, calc(0.45 * var(--shadow)));
+}
+.t-minimal-light .spawn .head { color: var(--secondary); font-family: system-ui, sans-serif; font-weight: 700; font-size: max(var(--min-small), 0.65em); letter-spacing: 0.22em; padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--text) 15%, transparent); }
+.t-minimal-light .spawn .img-wrap { height: var(--img); margin: 12px 0; background: color-mix(in srgb, var(--text) 4%, transparent); }
+.t-minimal-light .spawn img.mon { max-width: 86%; max-height: 86%; }
+.t-minimal-light .spawn .name { font-style: italic; }
+.t-minimal-light .spawn .dex { color: var(--muted); opacity: 1; font-family: system-ui, sans-serif; font-size: max(var(--min-small), 0.75em); letter-spacing: 0.12em; margin-top: 2px; }
+.t-minimal-light .spawn .meta { margin-top: 10px; gap: 10px; }
+.t-minimal-light .badge { padding: 0; border-radius: 0; background: transparent; color: var(--muted); font-family: system-ui, sans-serif; font-weight: 600; letter-spacing: 0.14em; font-size: max(var(--min-small), 0.68em); }
+.t-minimal-light .badge.rarity { color: var(--rc); }
+.t-minimal-light .badge + .badge::before { content: '·'; margin-right: 10px; color: var(--muted); }
+.t-minimal-light .spawn .timer { margin-top: 12px; height: 2px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.t-minimal-light .spawn .timer > div { background: var(--text); }
+.t-minimal-light .spawn .digits { margin-top: 12px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--text) 15%, transparent); font-size: 1.7em; font-weight: 400; display: flex; justify-content: space-between; align-items: baseline; }
+.t-minimal-light .spawn .digits::before { content: 'Tempo'; font-family: system-ui, sans-serif; font-size: max(var(--min-small), 0.4em); letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+.t-minimal-light .spawn.hurry .digits { color: var(--secondary); }
+.t-minimal-light .spawn .foot { color: var(--muted); font-family: system-ui, sans-serif; font-size: max(var(--min-small), 0.72em); letter-spacing: 0.06em; }
+.t-minimal-light .spawn .ring .track { stroke: color-mix(in srgb, var(--text) 10%, transparent); }
+.t-minimal-light .spawn .ring .prog { stroke: var(--text); stroke-width: 1.5; }
+.t-minimal-light .note { background: var(--panel); color: var(--text); border-radius: 2px; font-weight: 500; border-top: 2px solid var(--text); }
+.t-minimal-light .note b { color: var(--text); }
+.t-minimal-light .note.ok { border-top-color: var(--ok); }
+.t-minimal-light .note.ko { border-top-color: var(--ko); }

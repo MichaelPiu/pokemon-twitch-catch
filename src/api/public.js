@@ -18,11 +18,11 @@ export function registerPublicRoutes(app) {
     rarities: RARITY_LABELS,
   }), { public: true });
 
-  r.get('/api/public/overlay', () => ({ ...app.engine.overlaySnapshot(), settings: app.overlaySettings.all(), rarities: RARITY_LABELS }), { public: true });
+  r.get('/api/public/overlay', () => ({ ...app.engine.overlaySnapshot(), settings: app.themes.effective(), rarities: RARITY_LABELS }), { public: true });
 
   r.get('/api/public/leaderboard', (ctx) => {
     if (!pages().leaderboard) throw new HttpError(404, 'Classifica non disponibile');
-    return { items: leaderboard(app.db, { limit: Math.min(100, Number(ctx.query.get('limit')) || 50) }) };
+    return { items: leaderboard(app.db, { limit: Math.min(100, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 50)) }) };
   }, { public: true });
 
   r.get('/api/public/pokedex/:login', (ctx) => {

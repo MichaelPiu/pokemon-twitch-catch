@@ -27,6 +27,9 @@ import { BackupService, preMigrationBackup } from './backup/backup.js';
 import { registerAuthRoutes } from './api/auth.js';
 import { registerAdminRoutes } from './api/admin.js';
 import { registerPublicRoutes } from './api/public.js';
+import { registerOverlayRoutes } from './api/overlay.js';
+import { ThemeStore } from './overlay/themes.js';
+import { OverlaySimulator } from './overlay/simulator.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -50,6 +53,16 @@ export class App {
     for (const d of [c.dataDir, c.imagesDir, c.backupsDir, c.logsDir]) mkdirSync(d, { recursive: true });
 
     this.db = new Database(c.dbPath);
+    // Database di una versione più recente (es. dopo un ritorno a una versione
+    // precedente senza ripristinare il backup pre-migrazione): avvio rifiutato
+    // senza modificare nulla.
+    try {
+      this.db.assertSupportedSchema();
+    } catch (e) {
+      this.db.close();
+      this.log.error('Avvio annullato: database non compatibile', { message: e.message });
+      throw e;
+    }
     const isNew = !this.db.get("SELECT name FROM sqlite_master WHERE name = 'schema_migrations'");
     this.backups = null;
     // Prima di aggiornare lo schema di un database esistente ne salva una copia.
@@ -64,6 +77,8 @@ export class App {
     this.gameSettings = new SettingsStore(this.db, 'game_settings', { ...GAME_DEFAULTS, commands: COMMAND_GLOBAL_DEFAULTS });
     this.adminSettings = new SettingsStore(this.db, 'admin_settings', ADMIN_DEFAULTS);
     this.overlaySettings = new SettingsStore(this.db, 'overlay_settings', OVERLAY_DEFAULTS);
+    this.themes = new ThemeStore({ db: this.db, overlaySettings: this.overlaySettings, log: this.logger.child('overlay') });
+    this.themes.init();
 
     this.box = new SecretBox(loadSecretKey(join(c.dataDir, 'secret.key'), c.secretKey));
     this.auth = new AuthService({ db: this.db, dataDir: c.dataDir, log: this.logger.child('auth'), initialPassword: c.adminInitialPassword });
@@ -87,7 +102,12 @@ export class App {
     });
     this.adminHostsFromEnv = envAdminHosts.length > 0;
 
-    this.hub = new WsHub({ authorizeAdmin: (req) => this.authorizeAdminSocket(req), log: this.logger.child('ws') });
+    this.hub = new WsHub({
+      authorizeAdmin: (req) => this.authorizeAdminSocket(req),
+      log: this.logger.child('ws'),
+      clientIp: (req) => this.clientIp(req),
+      overlayLimits: c.wsOverlayLimits,
+    });
     this.sm = new StateMachine({ db: this.db, log: this.logger.child('lifecycle') });
     this.engine = new GameEngine({ db: this.db, gameSettings: this.gameSettings, hub: this.hub, log: this.logger.child('game'), timers: this.timers, ...(this.rng ? { rng: this.rng } : {}) });
     this.engine.recoverAfterRestart();
@@ -108,7 +128,14 @@ export class App {
     this.importer.on('progress', (p) => this.hub.admin('import', p));
     this.backups = new BackupService({ db: this.db, config: c, adminSettings: this.adminSettings, log: this.logger.child('backup') });
 
-    this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.overlaySettings.all() }));
+    this.simulator = new OverlaySimulator({
+      db: this.db, hub: this.hub, engine: this.engine, sm: this.sm, log: this.logger.child('overlay'), timers: this.timers,
+      channelLive: () => !!this.monitor?.channelLive(),
+    });
+    // Gioco che si attiva (diretta, ripresa, DEMO): via gli elementi simulati dagli overlay.
+    this.sm.on('transition', ({ to }) => { if (to === STATES.LIVE || to === STATES.PAUSED) this.simulator.purge(`stato ${to}`); });
+    this.engine.on('status', () => { if (this.engine.mode) this.simulator.purge(this.engine.mode === 'demo' ? 'DEMO' : 'diretta'); });
+    this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.themes.effective() }));
     this.hub.setSnapshot('admin', () => this.liveStatus());
     this.engine.on('status', () => this.hub.admin('status', this.liveStatus()));
     // Aggiorna dashboard e barra superiore anche per i cambi di stato Twitch (non solo del motore).
@@ -123,6 +150,7 @@ export class App {
     registerAuthRoutes(this);
     registerAdminRoutes(this);
     registerPublicRoutes(this);
+    registerOverlayRoutes(this);
 
     if (this.timers) this.backups.startScheduler();
     this.pruneTimer = setInterval(() => this.prune(), 6 * 3600 * 1000);
@@ -340,7 +368,9 @@ export class App {
       this.db.open();
       this.db.migrate();
       this.seed();
+      this.themes.init();
     }
+    this.hub.overlay('settings', this.themes.effective());
     this.engine.session = null;
     this.engine.mode = null;
     this.engine.recoverAfterRestart();
@@ -354,6 +384,7 @@ export class App {
     this.proxy?.stop();
     this.monitor?.stop();
     this.engine?.shutdown();
+    this.simulator?.stop();
     this.backups?.stop();
     this.hub?.close();
     if (this.server) await new Promise((r) => { this.server.closeAllConnections?.(); this.server.close(() => r()); });

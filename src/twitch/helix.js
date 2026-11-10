@@ -1,4 +1,7 @@
 // Client per le API Helix di Twitch con rinnovo automatico dei token.
+// Timeout, ritentativi e 429 sono gestiti da fetchWithRetry (./http.js).
+import { fetchWithRetry } from './http.js';
+
 export class HelixError extends Error {
   constructor(status, message, body) {
     super(message);
@@ -14,6 +17,7 @@ export class Helix {
     this.oauth = oauth;
     this.log = log;
     this.fetch = fetchImpl;
+    this.http = { ...(config.twitch.http || {}), log };
     this.refreshing = new Map();
   }
 
@@ -24,6 +28,8 @@ export class Helix {
     return t.accessToken;
   }
 
+  // Un solo rinnovo alla volta per ruolo: chiamate concorrenti (richieste Helix,
+  // controllo orario dei token) condividono lo stesso esito.
   async refresh(role) {
     if (!this.refreshing.has(role)) {
       this.refreshing.set(role, this.oauth.refresh(role).finally(() => this.refreshing.delete(role)));
@@ -41,7 +47,7 @@ export class Helix {
       }
     }
     const token = await this.token(role);
-    const res = await this.fetch(url, {
+    const res = await fetchWithRetry(this.fetch, url, {
       method,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -49,7 +55,7 @@ export class Helix {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
-    });
+    }, { ...this.http, label: `Helix ${method} ${path}` });
     if (res.status === 401 && retry) {
       await this.refresh(role);
       return this.request(method, path, { query, body, role, retry: false });
