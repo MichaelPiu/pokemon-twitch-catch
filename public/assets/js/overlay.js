@@ -11,9 +11,13 @@
 //   quelli reali.
 // - ?preview=1 (anteprima dell'Overlay Designer): nessuna connessione al server,
 //   riceve impostazioni ed eventi di prova solo dalla pagina che la contiene.
+// - Effetti sonori (overlay/audio-client.js): la stessa pagina riproduce i suoni di
+//   spawn e cattura, ma solo nella Browser Source di OBS (o con ?audio=1). Modulo
+//   separato dalla grafica: un aggiornamento grafico non interrompe né ripete un suono.
 import { effectiveSettings, sanitizeConfig, defaultConfig, fontStack, LAYOUTS } from './overlay/theme-core.js';
 import { EventQueue } from './overlay/event-queue.js';
 import { LeaderboardLayer } from './overlay/leaderboard-view.js';
+import { startOverlayAudio } from './overlay/audio-client.js';
 import { TYPE_IT } from './lib.js'; // nomi dei tipi: un'unica tabella per dashboard e overlay
 
 const params = new URLSearchParams(location.search);
@@ -483,3 +487,5 @@ async function start() {
 }
 
 start();
+// Audio indipendente dalla grafica: un suo errore non tocca l'overlay.
+try { startOverlayAudio(); } catch (e) { console.warn('Audio overlay non avviato:', e); }

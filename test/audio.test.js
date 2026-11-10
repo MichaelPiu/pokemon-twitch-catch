@@ -1,7 +1,8 @@
 // Effetti sonori per OBS: suono allo spawn (casuale, senza ripetere l'ultimo) e
 // musica alla cattura confermata. Gli eventi passano dal vero motore (EventSub
 // simulato per le dirette, API della dashboard per le sessioni manuali) e
-// arrivano solo al canale WebSocket "audio" della Browser Source /overlay/audio.
+// arrivano solo al canale WebSocket "audio", consumato dalla stessa pagina /overlay
+// (un'unica Browser Source di OBS per grafica e suoni).
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, symlinkSync, readFileSync, readdirSync } from 'node:fs';
@@ -11,6 +12,7 @@ import {
   makeApp, cleanup, seedPokemon, linkReward, FakeTwitch, FakeEventSub, waitFor, redemption, seqRng, BROADCASTER_ID, adminClient,
 } from './helpers.js';
 import { AudioPlayer, MAX_AGE_MS } from '../public/assets/js/overlay/audio-core.js';
+import { audioMode, startOverlayAudio } from '../public/assets/js/overlay/audio-client.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MARIO = { id: '2001', login: 'mario', name: 'Mario' };
@@ -38,6 +40,39 @@ function addFiles(app, files = FILES) {
     writeFileSync(full, Buffer.from(`ID3-${body}-${rel}`));
   }
   app.audio.cache = null;
+}
+
+// Riproduzione simulata (HTML5 Audio non esiste in Node).
+class RecAudio {
+  static made = [];
+  static reject = false;
+  constructor(src) { this.src = src; this.volume = 1; RecAudio.made.push(this); }
+  play() { this.playing = true; return RecAudio.reject ? Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' })) : Promise.resolve(); }
+  pause() { this.playing = false; }
+}
+
+// Elemento DOM minimo per il riquadro diagnostico.
+const fakeEl = (tag) => ({ tag, children: [], className: '', textContent: '', onclick: null, id: '', appendChild(c) { this.children.push(c); }, replaceChildren(...c) { this.children = c; } });
+const textOf = (el) => [el.textContent, ...el.children.map(textOf)].join(' ');
+
+// Finestra simulata della pagina /overlay: OBS (window.obsstudio), browser
+// normale o iframe della dashboard. WebSocket vero (ws) o finto.
+function fakeWindow({ port = 0, search = '', obs = false, inFrame = false, WS = null } = {}) {
+  const sockets = [];
+  const Base = WS || WebSocket;
+  const win = {
+    location: { search, protocol: 'http:', host: `127.0.0.1:${port}` },
+    document: { createElement: fakeEl, body: fakeEl('body') },
+    Audio: RecAudio,
+    setTimeout: (fn, ms) => setTimeout(fn, ms),
+    WebSocket: class extends Base { constructor(url) { super(url); sockets.push(this); } },
+    AudioContext: class { constructor() { win.unlocked = (win.unlocked || 0) + 1; } createBuffer() { return {}; } createBufferSource() { return { connect() {}, start() {} }; } resume() {} get destination() { return {}; } },
+    sockets,
+  };
+  if (obs) win.obsstudio = { pluginVersion: 'test' };
+  win.self = win;
+  win.top = inFrame ? {} : win;
+  return win;
 }
 
 function socket(port, path) {
@@ -291,15 +326,75 @@ describe('Effetti sonori per OBS', () => {
     assert.equal(app.audio.resolve().capture.name, '11 - Route 1');
   });
 
-  test('sorgente /overlay/audio e file audio: solo la whitelist, nessun percorso arbitrario', async () => {
+  test('una sola Browser Source /overlay: la stessa pagina mostra la grafica e riproduce spawn e cattura', async () => {
     const base = `http://127.0.0.1:${port}`;
-    const page = await fetch(`${base}/overlay/audio`);
+    const page = await fetch(`${base}/overlay`);
     assert.equal(page.status, 200);
-    assert.match(page.headers.get('content-type'), /text\/html/);
-    assert.equal(page.headers.get('cache-control'), 'no-store');
     assert.equal(page.headers.get('x-frame-options'), null, 'utilizzabile come Browser Source');
-    const html = await page.text();
-    assert.match(html, /\/assets\/js\/overlay\/audio\.js/);
+    assert.match(await page.text(), /\/assets\/js\/overlay\.js/);
+    const main = await (await fetch(`${base}/assets/js/overlay.js`)).text();
+    assert.match(main, /from '\.\/overlay\/audio-client\.js'/, 'il client audio è parte dell\'overlay principale');
+    assert.match(main, /startOverlayAudio\(\)/);
+    assert.equal((await fetch(`${base}/assets/js/overlay/audio-client.js`)).status, 200);
+    assert.equal((await fetch(`${base}/overlay/audio`)).status, 404, 'nessuna seconda pagina da aggiungere a OBS');
+
+    // Overlay aperto in OBS: canale grafico (come nel browser) + canale audio della stessa pagina.
+    audioWs.ws.close();
+    await waitFor(() => app.hub.counts().audio === 0, { message: 'sorgente di prova chiusa' });
+    RecAudio.made = [];
+    const graphics = socket(port, '/ws/overlay');
+    await graphics.open;
+    const win = fakeWindow({ port, obs: true });
+    const obs = startOverlayAudio(win);
+    try {
+      assert.equal(obs.mode.enabled, true);
+      await waitFor(() => win.__liveCatchAudio.state().connected && app.hub.counts().audio === 1, { message: 'overlay OBS collegato al canale audio' });
+      assert.equal((await client.req('GET', '/api/admin/audio')).data.listeners, 1, 'la dashboard vede l\'overlay OBS come sorgente audio');
+
+      await manualStart();
+      const sp = await spawn(1);
+      await waitFor(() => RecAudio.made.length === 1, { message: 'suono di spawn nell\'overlay' });
+      assert.ok(graphics.msgs.some((m) => m.type === 'spawn' && m.data.id === sp.id), 'grafica dello spawn sullo stesso overlay');
+      assert.ok(SPAWN_AUTO.includes(obs.player.log[0].name));
+
+      // Cambi di schermata e aggiornamenti grafici (nuovo snapshot, classifica,
+      // tema) non passano dal canale audio: nessun suono ripetuto o interrotto.
+      const again = socket(port, '/ws/overlay');
+      await again.open;
+      await waitFor(() => again.msgs.some((m) => m.type === 'snapshot'), { message: 'snapshot grafico' });
+      app.hub.overlay('leaderboard', { visible: true });
+      app.hub.overlay('settings', {});
+      again.ws.close();
+      await settle();
+      assert.equal(RecAudio.made.length, 1);
+      assert.equal(RecAudio.made[0].playing, true, 'il suono in corso non viene fermato');
+
+      const r = await manualThrow(0.0);
+      assert.equal(r.caught, true);
+      await waitFor(() => RecAudio.made.length === 2, { message: 'musica di cattura nell\'overlay' });
+      assert.match(RecAudio.made[1].src, /^\/audio\/[a-f0-9]{16}\.mp3/);
+      assert.equal(obs.player.log[0].name, '15 - Caught a Pokémon!');
+      assert.ok(graphics.msgs.some((m) => m.type === 'throw'), 'grafica della cattura sullo stesso overlay');
+
+      // Riconnessione (Umbrel riavviato, rete caduta): nessun evento passato riprodotto.
+      const lastPlay = obs.player.log[0];
+      win.sockets.at(-1).close();
+      await waitFor(() => win.sockets.length === 2 && win.__liveCatchAudio.state().connected, { timeout: 5000, message: 'riconnessione automatica' });
+      await settle();
+      assert.equal(RecAudio.made.length, 2, 'nessun suono alla riconnessione');
+      // Lo stesso evento consegnato di nuovo: ignorato.
+      app.hub.audio('play', { id: lastPlay.id, kind: 'capture', name: lastPlay.name, url: RecAudio.made[1].src, volume: 70, maxDurationS: 0, at: Date.now() });
+      await settle();
+      assert.equal(RecAudio.made.length, 2, 'evento duplicato non riprodotto');
+      assert.equal(obs.player.stats.duplicates, 1);
+    } finally {
+      obs.close();
+      graphics.ws.close();
+    }
+  });
+
+  test('file audio: solo la whitelist, nessun percorso arbitrario', async () => {
+    const base = `http://127.0.0.1:${port}`;
     assert.equal((await fetch(`${base}/assets/js/overlay/audio-core.js`)).status, 200);
 
     // Collegamento simbolico verso un file esterno: escluso dalla whitelist.
@@ -320,7 +415,7 @@ describe('Effetti sonori per OBS', () => {
   });
 });
 
-describe('Lettore audio della Browser Source (deduplicazione e riconnessioni)', () => {
+describe('Lettore audio dell\'overlay (deduplicazione e riconnessioni)', () => {
   class FakeAudio {
     static made = [];
     constructor(src) { this.src = src; this.volume = 1; FakeAudio.made.push(this); }
@@ -383,5 +478,71 @@ describe('Lettore audio della Browser Source (deduplicazione e riconnessioni)', 
     assert.equal(a.volume, 0);
     assert.equal(a.playing, false);
     assert.equal(p.playing.size, 0);
+  });
+});
+
+describe('Audio integrato nell\'overlay: dove suona e dove no', () => {
+  // WebSocket finto: registra le connessioni e consente di iniettare messaggi.
+  class FakeWS {
+    constructor(url) { this.url = url; queueMicrotask(() => this.onopen?.()); }
+    send() {}
+    close() { this.closed = true; }
+    push(type, data, ts = Date.now()) { this.onmessage?.({ data: JSON.stringify({ type, data, ts }) }); }
+  }
+  const started = [];
+  afterEach(() => { while (started.length) started.pop().close(); RecAudio.reject = false; });
+  const start = (opts) => { const win = fakeWindow({ WS: FakeWS, ...opts }); const c = startOverlayAudio(win); started.push(c); return { win, c }; };
+
+  test('attivo solo nella Browser Source di OBS o con ?audio=1; muto in dashboard, anteprima e browser normale', () => {
+    assert.equal(audioMode({ isObs: true }).enabled, true);
+    assert.equal(audioMode({ search: '?audio=1' }).enabled, true);
+    assert.equal(audioMode({}).enabled, false, 'browser normale');
+    assert.equal(audioMode({ search: '?preview=1', isObs: true }).enabled, false, 'anteprima dell\'Overlay Designer');
+    assert.equal(audioMode({ inFrame: true, isObs: true }).enabled, false, 'overlay incorporato nella dashboard');
+    assert.equal(audioMode({ search: '?audio=1', inFrame: true }).enabled, false);
+    assert.equal(audioMode({ search: '?audio=0', isObs: true }).enabled, false, 'disattivabile anche in OBS');
+    assert.equal(audioMode({ search: '?debug=1', isObs: true }).debug, true);
+
+    // Fuori da OBS la pagina non si collega nemmeno al canale audio (contatore esatto).
+    for (const opts of [{}, { search: '?preview=1' }, { inFrame: true, obs: true }, { search: '?debug=1' }]) {
+      const { win, c } = start(opts);
+      assert.equal(c.player, null);
+      assert.equal(win.sockets.length, 0, JSON.stringify(opts));
+      assert.equal(win.__liveCatchAudio.state().enabled, false);
+    }
+    // In un browser normale con ?debug=1 il riquadro spiega perché è muto.
+    const { win } = start({ search: '?debug=1' });
+    assert.match(textOf(win.document.body), /Audio non attivo in questa pagina: pagina aperta fuori da OBS/);
+    // In OBS si collega a /ws/audio della stessa origine.
+    const obs = start({ obs: true, port: 8788 });
+    assert.equal(obs.win.sockets.length, 1);
+    assert.equal(obs.win.sockets[0].url, 'ws://127.0.0.1:8788/ws/audio');
+    assert.equal(obs.win.document.body.children.length, 0, 'nessun elemento visibile senza ?debug=1');
+  });
+
+  test('autoplay bloccato: segnalato nel riquadro diagnostico, "Sblocca audio" sblocca e i suoni successivi partono', async () => {
+    RecAudio.made = [];
+    const { win, c } = start({ obs: true, search: '?debug=1' });
+    await new Promise((r) => setImmediate(r));
+    const ws = win.sockets[0];
+    ws.push('snapshot', { settings: { enabled: true, spawnEnabled: true, captureEnabled: true, volume: 70 } });
+    RecAudio.reject = true;
+    ws.push('play', { id: 'spawn-1', kind: 'spawn', name: '10 - Level Up!', url: '/audio/0123456789abcdef.mp3?v=1', volume: 70, maxDurationS: 0, at: Date.now() });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(c.player.stats.blocked, 1);
+    const panel = win.document.body.children[0];
+    assert.equal(panel.id, 'audio-diag');
+    assert.match(textOf(panel), /Riproduzione automatica bloccata/);
+    const btn = panel.children.find((e) => e.tag === 'button');
+    assert.ok(btn, 'pulsante Sblocca audio');
+    RecAudio.reject = false;
+    btn.onclick();
+    assert.equal(win.unlocked, 1, 'AudioContext avviato dal clic');
+    assert.equal(c.player.lastError, null);
+    assert.match(textOf(win.document.body.children[0]), /Audio sbloccato/);
+    ws.push('play', { id: 'capture-2', kind: 'capture', name: '15 - Caught a Pokémon!', url: '/audio/fedcba9876543210.mp3?v=1', volume: 70, maxDurationS: 0, at: Date.now() });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(c.player.stats.played, 2);
+    assert.equal(RecAudio.made.at(-1).playing, true);
   });
 });

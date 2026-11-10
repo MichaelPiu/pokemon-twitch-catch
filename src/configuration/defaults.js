@@ -58,7 +58,7 @@ export const GAME_DEFAULTS = {
   },
 };
 
-// Effetti sonori per OBS (Browser Source /overlay/audio): vedi src/audio/audio.js.
+// Effetti sonori dell'overlay OBS (/overlay, stessa Browser Source della grafica): vedi src/audio/audio.js.
 export const AUDIO_DEFAULTS = {
   enabled: true,
   volume: 70, // 0-100

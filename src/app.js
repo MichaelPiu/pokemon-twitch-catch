@@ -321,9 +321,8 @@ export class App {
       if (!this.guard.hostAllowed(req)) return this.misdirected(res, this.guard.dedicatedUrl(req));
       return page('admin/index.html', { noStore: true, frame: 'DENY' });
     }
+    // Overlay OBS: una sola Browser Source per grafica ed effetti sonori.
     if (path === '/overlay' || path === '/overlay/') return page('overlay/index.html', { noStore: true, frame: null });
-    // Browser Source audio di OBS (nessun elemento visibile; ?debug=1 per la diagnostica).
-    if (path === '/overlay/audio' || path === '/overlay/audio/') return page('overlay/audio.html', { noStore: true, frame: null });
     // File audio: solo quelli della whitelist (ID opaco), mai un percorso.
     if (path.startsWith('/audio/')) {
       const m = /^\/audio\/([a-f0-9]{16})\.([a-z0-9]{2,4})$/.exec(path);

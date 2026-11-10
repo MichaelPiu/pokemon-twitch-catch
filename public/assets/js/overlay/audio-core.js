@@ -1,4 +1,4 @@
-// Lettore degli effetti sonori della Browser Source /overlay/audio.
+// Lettore degli effetti sonori dell'overlay /overlay (usato da audio-client.js).
 // Indipendente dal DOM (testabile in Node): riceve gli eventi "play" del canale
 // WebSocket audio e li riproduce con HTML5 Audio.
 //

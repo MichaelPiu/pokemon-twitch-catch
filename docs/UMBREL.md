@@ -206,12 +206,13 @@ Da provare solo con un'immagine compilata da questo ramo (Metodo B), su un'insta
    ```
    Se la cartella non è scrivibile dall'utente `umbrel`, usa `sudo` sul server e poi `sudo chown -R 1000:1000 ~/umbrel/app-data/piu-live-catch/data/audio`.
 2. *Audio OBS*: i file compaiono nell'elenco; controlla la musica di cattura e la lista dei suoni di spawn.
-3. OBS: nuova sorgente Browser `http://IP-UMBREL:8788/overlay/audio`, 10 × 10, *Controlla l'audio tramite OBS* attivo. La dashboard deve indicare *1 sorgente audio collegata*.
+3. OBS: **nessuna nuova sorgente**. Nella sorgente Browser dell'overlay già esistente (`http://IP-UMBREL:8788/overlay`) attiva *Controlla l'audio tramite OBS*. La dashboard deve indicare *1 overlay OBS con audio collegato*.
 4. *Prova suono spawn* e *Prova musica cattura*: devono suonare in OBS e non nel browser della dashboard.
 5. Sessione manuale: *Genera Pokémon* → un suono; lancio riuscito → la musica di cattura; lancio fallito → niente.
 6. Chiudi OBS, genera qualche spawn, riapri OBS: nessun suono arretrato.
-7. Riavvia l'app: le impostazioni audio restano.
-8. Diretta di prova: un riscatto riuscito suona una volta sola.
+7. Durante un suono cambia schermata dell'overlay (classifica, tema): il suono continua e non riparte. Apri `…/overlay` in un browser e l'anteprima nell'Overlay Designer: nessun suono.
+8. Riavvia l'app: le impostazioni audio restano.
+9. Diretta di prova: un riscatto riuscito suona una volta sola.
 
 I file audio restano nella cartella dati dopo gli aggiornamenti, ma non sono nei backup dell'app: tienine una copia a parte.
 

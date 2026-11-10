@@ -2,8 +2,9 @@
 // ogni cattura riuscita. Gli eventi nascono dagli eventi già emessi dal motore
 // di gioco ('spawn', 'attempt'): nessun secondo motore e nessuna seconda
 // gestione degli eventi. Vengono inviati solo al canale WebSocket "audio",
-// ascoltato dalla Browser Source /overlay/audio: la dashboard e l'overlay
-// grafico non li ricevono mai.
+// che l'overlay /overlay ascolta solo quando gira nella Browser Source di OBS
+// (una sola sorgente per grafica e suoni): la dashboard non li riceve mai e il
+// canale grafico "overlay" non li trasporta.
 //
 // I file stanno nella cartella dati (DATA_DIR/audio), non nel repository né
 // nell'immagine: l'app serve solo i file di una whitelist costruita leggendo

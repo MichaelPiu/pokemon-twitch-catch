@@ -58,7 +58,7 @@ Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/
 | Modifica Pokédex | Ricerca, filtri, correzione, registrazione e rimozione di esemplari con anteprima delle differenze, controllo dei conflitti e registro delle modifiche. |
 | Backup di rete | Backup automatici su una cartella di rete montata (NFS/SMB tramite Umbrel o volume Docker) con manifest e checksum, verifica della connessione, ritentativi, rotazione e ripristino guidato. |
 | Classifiche | Classifica catture e classifica punti per ogni sessione (Twitch o manuale), aggiornate in tempo reale; podio, vincitore, riepilogo e Hall of Fame nell'overlay OBS, visibili finché non li nascondi; risultati congelabili; comando `!leaderboard` per broadcaster e moderatori. |
-| Effetti sonori | Un suono casuale a ogni spawn e la musica di conferma a ogni cattura riuscita, solo nella Browser Source audio di OBS (`/overlay/audio`); file audio tuoi, nella cartella dati. |
+| Effetti sonori | Un suono casuale a ogni spawn e la musica di conferma a ogni cattura riuscita, riprodotti dalla stessa Browser Source dell'overlay (`/overlay`), solo dentro OBS; file audio tuoi, nella cartella dati. |
 | DEMO | Modalità di prova separata (utenti/sessioni marcati DEMO) che non tocca le statistiche reali e non è disponibile durante una diretta. |
 
 ## Architettura
@@ -329,6 +329,7 @@ Rarità iniziale: Mitico / Leggendario da PokéAPI; per gli altri dal *capture r
 2. URL: `http://IP-DEL-SERVER:8788/overlay` (es. `http://192.168.1.50:8788/overlay`). Su Windows usa l'**IP** invece di `umbrel.local`.
 3. Larghezza `1920` e altezza `1080`, oppure `1280` × `720`. L'overlay disegna tutto su una tela 1920×1080 e la scala alla dimensione della sorgente, quindi l'aspetto è identico.
 4. Spunta *Aggiorna il browser quando la scena diventa attiva*. Lo sfondo è già trasparente.
+5. **Effetti sonori**: spunta *Controlla l'audio tramite OBS*. La stessa sorgente riproduce anche i suoni di spawn e cattura: non serve una seconda sorgente (vedi [Effetti sonori per OBS](#effetti-sonori-per-obs)).
 
 **Dopo un aggiornamento dell'app**: OBS conserva in cache i file della pagina. Apri le proprietà della sorgente Browser e premi **Aggiorna la cache della pagina corrente** (oppure rimuovi e ricrea la sorgente). Senza questo passaggio la sorgente può continuare a usare il codice precedente fino al riavvio di OBS. Il cambio di tema invece non richiede mai di ricaricare.
 
@@ -635,7 +636,8 @@ Sezione **Audio OBS** della dashboard. *Funzionalità della versione in sviluppo
 
 - **Spawn**: a ogni nuovo Pokémon suona un effetto scelto a caso dalla lista (mai lo stesso due volte di fila, se la lista ha almeno due file), oppure sempre lo stesso file.
 - **Cattura confermata**: quando il motore registra una cattura riuscita suona la musica di conferma, una sola volta.
-- **Solo in OBS**: i suoni partono esclusivamente nella Browser Source dedicata `/overlay/audio`. La dashboard, l'overlay grafico e le altre pagine non riproducono mai audio, nemmeno con il pulsante *Prova*.
+- **Una sola sorgente in OBS**: i suoni li riproduce l'overlay `/overlay`, la stessa Browser Source che mostra la grafica. Non serve aggiungere altre sorgenti, URL o pagine.
+- **Solo dentro OBS**: l'overlay suona solo quando gira nella Browser Source di OBS. Aperto in un browser normale o nell'anteprima della dashboard resta muto; la dashboard non riproduce mai audio, nemmeno con il pulsante *Prova*.
 
 ### I file audio
 
@@ -684,32 +686,42 @@ Le impostazioni sono salvate nel database e restano dopo riavvio, aggiornamento 
 
 ### Configurare OBS
 
-1. Aggiungi **una** sorgente **Browser**, in una scena sempre attiva o come sorgente globale.
-2. **URL**: `http://IP-UMBREL:8788/overlay/audio` (con un hostname dedicato: `http://livecatch.lan:8788/overlay/audio`).
-3. **Larghezza e altezza**: 10 × 10. La pagina è trasparente e non mostra nulla.
-4. Attiva **Controlla l'audio tramite OBS**: la sorgente compare nel mixer e puoi regolarne volume e monitoraggio.
-5. Lascia **disattivati** *Chiudi la sorgente quando non è visibile* e *Aggiorna il browser quando la scena diventa attiva*.
+Basta la sorgente **Browser** dell'overlay che già usi, `http://IP-UMBREL:8788/overlay` (vedi [Collegamento OBS](#collegamento-obs)). Nelle sue proprietà:
 
-La pagina resta aperta per tutta la diretta: riceve gli eventi via WebSocket e si riconnette da sola. Non serve ricaricarla.
+1. Attiva **Controlla l'audio tramite OBS**: la sorgente compare nel mixer e puoi regolarne volume e monitoraggio.
+2. Lascia **disattivato** *Chiudi la sorgente quando non è visibile*: altrimenti, quando la scena non è in onda, la pagina viene chiusa e i suoni di quel periodo vanno persi. *Aggiorna il browser quando la scena diventa attiva* può restare attivo: dopo il ricaricamento la pagina non riproduce suoni arretrati.
 
-**Autoplay**: di norma la Browser Source di OBS riproduce l'audio senza bisogno di un clic (non ancora verificato su OBS reale con questa versione). Se nella diagnostica compare *bloccato* (pagina aperta in un browser normale, o una versione di OBS con criteri diversi):
+Nessuna seconda sorgente: grafica e suoni arrivano dalla stessa pagina, ciascuno sul proprio canale WebSocket (`/ws/overlay` per la grafica, `/ws/audio` per i suoni). I cambi di tema, la rotazione delle classifiche e gli altri aggiornamenti grafici non interrompono un suono in corso e non lo fanno ripartire. La pagina si riconnette da sola: non serve ricaricarla.
+
+**Dove suona**:
+
+| Overlay aperto… | Audio |
+|---|---|
+| nella Browser Source di OBS (riconosciuta automaticamente) | sì |
+| in un browser normale, per esempio con *Apri overlay* | no (per provarlo: `…/overlay?audio=1`) |
+| nell'anteprima della dashboard (Overlay Designer, classifiche) | mai |
+| in OBS con `…/overlay?audio=0` | no (audio disattivato solo per quella sorgente) |
+
+Solo le pagine che suonano si collegano al canale audio, quindi il contatore della dashboard indica esattamente gli overlay OBS in ascolto.
+
+**Autoplay**: di norma la Browser Source di OBS riproduce l'audio senza bisogno di un clic (non ancora verificato su OBS reale con questa versione). Se nella diagnostica compare *bloccato*:
 - in OBS: clic destro sulla sorgente → **Interagisci** → clic su **🔊 Sblocca audio** (visibile con `?debug=1`);
-- in un browser: apri `…/overlay/audio?debug=1` e premi **🔊 Sblocca audio**.
+- in un browser: apri `…/overlay?audio=1&debug=1` e premi **🔊 Sblocca audio**.
 
 ### Prova
 
-1. **Audio OBS** deve indicare *1 sorgente audio collegata*.
+1. **Audio OBS** deve indicare *1 overlay OBS con audio collegato*.
 2. Premi **▶ Prova suono spawn** e **▶ Prova musica cattura**, oppure **▶ Prova in OBS** accanto a un file: il suono parte in OBS (non nella dashboard). Senza sorgenti collegate la dashboard lo segnala.
-3. Per vedere cosa succede apri `http://IP-UMBREL:8788/overlay/audio?debug=1` (anche temporaneamente come URL della sorgente): stato della connessione, impostazioni, ultimi eventi con l'esito (*riprodotto*, *duplicato*, *troppo vecchio*, *bloccato*, *errore*).
+3. Per vedere cosa succede imposta temporaneamente l'URL della sorgente a `http://IP-UMBREL:8788/overlay?debug=1`: sopra la grafica compare un riquadro con stato della connessione audio, impostazioni, ultimi suoni con l'esito (*riprodotto*, *duplicato*, *troppo vecchio*, *bloccato*, *errore*) e il pulsante *Sblocca audio*. Poi torna a `…/overlay`.
 4. Prova reale: una sessione manuale, *Genera Pokémon* e un lancio riuscito.
 
 ### Quando suona e quando no
 
-- **Spawn**: un evento per ogni nuovo Pokémon, identificato dallo spawn. Non suona quando lo stesso Pokémon viene solo ridisegnato, quando la Browser Source viene aggiornata o si riconnette, durante la DEMO (salvo opzione), per importazioni o modifiche del Pokédex.
+- **Spawn**: un evento per ogni nuovo Pokémon, identificato dallo spawn. Non suona quando lo stesso Pokémon viene solo ridisegnato, quando l'overlay viene aggiornato, cambia schermata o si riconnette, durante la DEMO (salvo opzione), per importazioni o modifiche del Pokédex.
 - **Cattura**: un evento per ogni cattura riuscita, identificato dal tentativo, solo dopo che il motore l'ha registrata. Non suona per lanci falliti, tentativi rifiutati (nessun Pokémon in campo, limiti, ball disattivata), riscatti Twitch duplicati o catture già annullate.
 - **Sessioni**: funziona allo stesso modo nelle dirette Twitch e nelle sessioni manuali.
-- **Nessun doppione**: ogni evento ha un identificativo univoco; il server lo invia una sola volta e la Browser Source lo riproduce una sola volta, anche se arriva di nuovo.
-- **Nessun evento vecchio**: alla connessione la sorgente riceve solo impostazioni e ora del server, mai eventi passati. Un evento arrivato con più di 10 secondi di ritardo (secondo l'orologio del server) viene scartato.
+- **Nessun doppione**: ogni evento ha un identificativo univoco; il server lo invia una sola volta e l'overlay lo riproduce una sola volta, anche se arriva di nuovo.
+- **Nessun evento vecchio**: alla connessione l'overlay riceve solo impostazioni e ora del server, mai eventi passati. Un evento arrivato con più di 10 secondi di ritardo (secondo l'orologio del server) viene scartato.
 - **OBS spento o sorgente chiusa**: il gioco continua normalmente; i suoni di quel periodo vanno persi e non vengono recuperati alla riconnessione.
 - **Errori**: un file mancante, un formato non supportato o la riproduzione bloccata vengono mostrati nella diagnostica; un errore audio non blocca mai spawn, catture, Twitch o la modalità manuale.
 
@@ -848,7 +860,7 @@ Verifica eseguita in locale (non su Umbrel): con il codice rc.2 e quello della r
 | Il container non parte: "Il database usa lo schema vN … più recente" | Stai eseguendo una versione dell'app più vecchia del database (ritorno indietro senza ripristino). Reinstalla la versione più recente oppure segui [Tornare a una versione precedente](#tornare-a-una-versione-precedente-rollback). Il database non viene modificato. |
 | Overlay irraggiungibile, nel log "Connessione overlay rifiutata: limite raggiunto" | Troppe sorgenti/pagine overlay aperte (o un client che apre connessioni senza fine). Chiudi le anteprime inutilizzate oppure alza `WS_OVERLAY_MAX_PER_IP` / `WS_OVERLAY_MAX_CONNECTIONS`. |
 | Ho perso la password admin | Crea un file vuoto chiamato `reset-admin-password` nella cartella dati (Umbrel: `~/umbrel/app-data/piu-live-catch/data/`, metodo B: `~/livecatch/data/`) e riavvia l'app. La nuova password temporanea sarà nel file `initial-admin-password.txt` nella stessa cartella. I dati di gioco non vengono toccati. |
-| Nessun suono in OBS | *Audio OBS* deve indicare una sorgente collegata (URL `…/overlay/audio`). Apri `…/overlay/audio?debug=1`: se un suono risulta *bloccato*, premi *Sblocca audio* (in OBS: Interagisci); se risulta *errore*, controlla formato e file. Verifica anche il volume della sorgente nel mixer di OBS. Vedi [Effetti sonori per OBS](#effetti-sonori-per-obs). |
+| Nessun suono in OBS | *Audio OBS* deve indicare un overlay OBS collegato (la normale sorgente `…/overlay`, senza `?audio=0`). Imposta temporaneamente `…/overlay?debug=1`: se un suono risulta *bloccato*, premi *Sblocca audio* (in OBS: Interagisci); se risulta *errore*, controlla formato e file. Verifica anche il volume della sorgente nel mixer di OBS. Vedi [Effetti sonori per OBS](#effetti-sonori-per-obs). |
 | Log | *Backup & Sistema → Log*, oppure il file `/data/logs/app.log`. |
 
 ## Sviluppo e test
@@ -887,7 +899,7 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - token davvero revocato (rinnovo rifiutato con 400): procedura di revoca;
   - recupero automatico e rinnovo del token deduplicato.
 - **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
-- **Effetti sonori** (`test/audio.test.js`): scelta casuale dalla lista, nessuna ripetizione consecutiva, un evento per spawn e uno per cattura confermata, niente suoni per lanci falliti, rifiutati, duplicati o annullati, DEMO esclusa, interruttori, deduplicazione ed eventi vecchi scartati nella Browser Source, autoplay bloccato, dirette Twitch e sessioni manuali, OBS scollegato ed errori audio senza effetti sul gioco, persistenza delle impostazioni, whitelist dei file (niente percorsi arbitrari o collegamenti simbolici), pagina `/overlay/audio`, nessun audio nella dashboard.
+- **Effetti sonori** (`test/audio.test.js`): scelta casuale dalla lista, nessuna ripetizione consecutiva, un evento per spawn e uno per cattura confermata, niente suoni per lanci falliti, rifiutati, duplicati o annullati, DEMO esclusa, interruttori, deduplicazione ed eventi vecchi scartati nell'overlay, una sola Browser Source `/overlay` per grafica e suoni (anche durante cambi di schermata e riconnessioni), audio solo in OBS e mai nell'anteprima della dashboard o in un browser normale, autoplay bloccato e pulsante *Sblocca audio*, dirette Twitch e sessioni manuali, OBS scollegato ed errori audio senza effetti sul gioco, persistenza delle impostazioni, whitelist dei file (niente percorsi arbitrari o collegamenti simbolici), nessun audio nella dashboard.
 - **Ripristino con un'altra `secret.key`** (`test/credentials-key.test.js`): backup di rete e locale ripristinati su un'installazione nuova (HTTP 200), Panoramica, Twitch e Sistema funzionanti, modalità manuale, avviso Twitch scollegato, credenziali cifrate originali intatte fino al nuovo collegamento, ricollegamento e reinserimento del Client Secret.
 - **Classifiche** (`test/leaderboard.test.js`): classifiche catture e punti, bonus rarità e shiny, punteggi immutabili e regole versionate, identità Twitch (User ID, cambio nickname) e locale, separazione Twitch/MANUAL, esclusione DEMO e modifiche del Pokédex, nessun doppio conteggio, catture annullate, `!leaderboard` autorizzato e rifiutato, attivazione da dashboard e da comando, nascondi, persistenza dopo il riavvio, congelamento, sblocco, istantanee immutabili, rinomina, aggiornamento WebSocket, overlay (DOM di prova), classifica finale persistente, Hall of Fame, Stream Recap, backup e ripristino, migrazione dallo schema v4.
 - **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):

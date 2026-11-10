@@ -1,6 +1,7 @@
 // Hub WebSocket: canale "overlay" (pubblico, sola lettura, accessibile da OBS da
 // qualsiasi origine), canale "audio" (pubblico, sola lettura: solo gli effetti
-// sonori per la Browser Source /overlay/audio) e canale "admin" (sessione
+// sonori, ascoltati dall'overlay /overlay quando gira nella Browser Source di
+// OBS) e canale "admin" (sessione
 // valida + controllo Host/Origin, delegati ad authorizeAdmin).
 import { WebSocketServer } from 'ws';
 

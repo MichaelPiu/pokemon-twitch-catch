@@ -1,6 +1,7 @@
-// Audio OBS: effetti sonori di spawn e cattura per una Browser Source dedicata.
-// La dashboard NON riproduce mai l'audio: "Prova" invia l'evento solo alla
-// sorgente /overlay/audio aperta in OBS.
+// Audio OBS: effetti sonori di spawn e cattura, riprodotti dall'overlay /overlay in OBS.
+// I suoni li riproduce l'overlay /overlay nella stessa Browser Source di OBS
+// della grafica: nessuna seconda sorgente. La dashboard NON riproduce mai
+// l'audio: "Prova" invia l'evento solo all'overlay aperto in OBS.
 import { h, mount, get, post, put, fmt } from '../../lib.js';
 import { card, table, act, field, toast } from '../ui.js';
 
@@ -10,11 +11,11 @@ export async function audio({ el }) {
     const s = { ...d.settings };
     // Lista spawn modificabile: parte dalla selezione effettiva (automatica o manuale).
     let pool = new Set(d.resolved.pool.map((f) => f.path));
-    const obsUrl = `${location.origin}/overlay/audio`;
+    const obsUrl = `${location.origin}/overlay`;
     const copy = (u) => { navigator.clipboard?.writeText(u); toast('URL copiato', 'ok'); };
     const testBtn = (label, body) => h('button', { class: 'btn', onclick: async () => {
       const r = await act(() => post('/api/admin/audio/test', body));
-      if (r) toast(r.listeners ? `Inviato a ${r.listeners} sorgente/i audio di OBS: ${r.event.name}` : 'Nessuna sorgente audio di OBS collegata: il suono non è stato riprodotto', r.listeners ? 'ok' : 'warn');
+      if (r) toast(r.listeners ? `Inviato all'overlay in OBS (${r.listeners} sorgente/i): ${r.event.name}` : 'Nessun overlay OBS con audio collegato: il suono non è stato riprodotto', r.listeners ? 'ok' : 'warn');
     } }, label);
 
     const save = async (extra = {}) => {
@@ -27,14 +28,15 @@ export async function audio({ el }) {
     };
     const fileOptions = (auto) => [['', auto], ...d.files.map((f) => [f.path, `${f.folder ? `${f.folder}/` : ''}${f.name}`])];
 
-    const sourceCard = card('Sorgente audio per OBS',
+    const sourceCard = card('Audio nell\'overlay di OBS',
+      h('p', {}, 'Non serve una seconda sorgente: i suoni li riproduce la stessa Browser Source dell\'overlay, ', h('code', {}, obsUrl), ' ', h('button', { class: 'btn sm', onclick: () => copy(obsUrl) }, 'Copia'), '.'),
       h('ol', { class: 'steps' },
-        h('li', {}, 'In OBS aggiungi una sorgente ', h('b', {}, 'Browser'), ' (una sola, in una scena sempre attiva o come sorgente globale).'),
-        h('li', {}, 'URL: ', h('code', {}, obsUrl), ' ', h('button', { class: 'btn sm', onclick: () => copy(obsUrl) }, 'Copia')),
-        h('li', {}, 'Larghezza e altezza: 10 × 10 (non mostra nulla). Attiva ', h('b', {}, 'Controlla l\'audio tramite OBS'), ' per regolare il volume dal mixer. Lascia disattivato "Chiudi la sorgente quando non è visibile".'),
-        h('li', {}, 'Diagnostica: apri ', h('code', {}, `${obsUrl}?debug=1`), ' ', h('button', { class: 'btn sm', onclick: () => copy(`${obsUrl}?debug=1`) }, 'Copia'), ' in OBS o nel browser del PC di OBS.')),
+        h('li', {}, 'Nelle proprietà della sorgente Browser dell\'overlay attiva ', h('b', {}, 'Controlla l\'audio tramite OBS'), ' per regolare il volume dal mixer.'),
+        h('li', {}, 'Lascia disattivato "Chiudi la sorgente quando non è visibile", altrimenti i suoni si fermano quando la scena non è in onda.'),
+        h('li', {}, 'L\'audio parte solo dentro OBS: aprendo l\'overlay in un browser o nell\'anteprima della dashboard resta muto (per provarlo in un browser: ', h('code', {}, `${obsUrl}?audio=1`), ').'),
+        h('li', {}, 'Diagnostica: imposta temporaneamente l\'URL ', h('code', {}, `${obsUrl}?debug=1`), ' ', h('button', { class: 'btn sm', onclick: () => copy(`${obsUrl}?debug=1`) }, 'Copia'), ' (riquadro con stato, ultimi suoni e pulsante Sblocca audio).')),
       h('div', { class: d.listeners ? 'notice ok' : 'notice warn', style: { marginTop: '8px' } },
-        d.listeners ? `🔊 ${d.listeners} sorgente/i audio collegata/e in questo momento.` : '🔇 Nessuna sorgente audio collegata: i suoni non vengono riprodotti (il gioco continua normalmente).'),
+        d.listeners ? `🔊 ${d.listeners} overlay OBS con audio collegato/i in questo momento.` : '🔇 Nessun overlay OBS con audio collegato: i suoni non vengono riprodotti (il gioco continua normalmente).'),
       h('div', { class: 'row', style: { marginTop: '10px' } },
         testBtn('▶ Prova suono spawn', { kind: 'spawn' }),
         testBtn('▶ Prova musica cattura', { kind: 'capture' }),

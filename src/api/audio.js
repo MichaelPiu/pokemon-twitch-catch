@@ -1,8 +1,8 @@
 // API degli effetti sonori per OBS (sezione "Audio OBS" della dashboard).
 // Tutte le rotte sono sotto /api/admin/: sessione admin, CSRF e controllo
 // Origin/Host vengono applicati dal server come per il resto della dashboard.
-// La dashboard non riproduce mai l'audio: la prova invia l'evento solo alla
-// Browser Source /overlay/audio.
+// La dashboard non riproduce mai l'audio: la prova invia l'evento solo
+// all'overlay /overlay aperto nella Browser Source di OBS.
 import { HttpError, readJson } from '../http/router.js';
 import { audit } from '../audit.js';
 
