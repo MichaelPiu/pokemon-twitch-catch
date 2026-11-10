@@ -4,18 +4,23 @@
 
 | Verifica | Stato | Dove |
 |---|---|---|
-| Test automatici (logica, API, sicurezza, migrazioni, backup, Channel Points ed errori temporanei con Twitch simulato) | Verificata **in locale**: 156/156 su Node 24.22.2 e su Node 26.13.0. Nella CI di GitHub **non ancora eseguita** per la rc.3 | `npm test`, job CI *Test automatici* |
+| Test automatici (logica, API, sicurezza, migrazioni, backup, Channel Points ed errori temporanei con Twitch simulato) | Verificata **in locale**: 180/180 su Node 24.22.2 e su Node 26.13.0 (156 dell'app + 24 del controllo anonimo GHCR). Nella CI di GitHub **non ancora eseguita** per la rc.3 | `npm test`, job CI *Test automatici* |
 | Rollback rc.3 → rc.2 e ritorno, backup tra versioni di Node | Verificata **in locale** con script (nessun dato perso), non su Umbrel | README → *Tornare a una versione precedente* |
 | Dashboard e Overlay Designer nel browser | Verificata con test automatizzati nel Chromium del browser integrato (non OBS) | — |
-| Avvio reale del container amd64 e arm64: healthcheck, UID 1000, volume, persistenza dopo il riavvio, arresto pulito, password assenti dai log, volume non scrivibile | **Non ancora verificata per la rc.3**. Ultima verifica: CI del tag `v1.0.0-rc.1` (runner Ubuntu; arm64 in emulazione QEMU) | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
-| Linter ufficiale di Umbrel sul pacchetto | **Non ancora eseguito per la rc.3**. Ultima verifica (rc.1): nessun errore; nel repository di sviluppo l'unico avviso è l'immagine senza digest, che è invece fissato nello store | job CI *Linter ufficiale Umbrel* |
-| Immagine multi-arch pubblicata | **Da generare**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3` non è ancora stata costruita né pubblicata; il digest sarà scritto da `scripts/publish-store.sh` dopo la CI del rilascio. Ultima pubblicazione verificata: `1.0.0-rc.1@sha256:9daaabff4e05c50f04268153c28046965db31ce04b39034e0851be2aa49637f1` | job CI *Pubblicazione* |
-| Repository dello store: clone anonimo, manifest e icona raggiungibili | Verificata solo per il contenuto pubblicato con la rc.1 (HTTP 200, `git clone` senza credenziali). Il contenuto della rc.3 **non è ancora pubblicato** nello store | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
-| Installazione della rc.3 dallo store | **Non verificata**: la rc.3 non è pubblicata e non è mai stata installata su Umbrel. Nessuna versione risulta installata con successo da questo store su un vero Umbrel | — |
-| Immagine scaricabile senza autenticazione | **Bloccata**: la richiesta anonima a GHCR riceve HTTP 401 (controllato il 9 novembre 2026). Finché il pacchetto non è pubblico Umbrel non può scaricarlo e l'Action dello store fallisce su questa verifica | passo finale del job *Pubblicazione*, Action dello store |
+| Avvio reale del container amd64 e arm64: healthcheck, UID 1000, volume, persistenza dopo il riavvio, arresto pulito, password assenti dai log, volume non scrivibile | **Non ancora verificata per la rc.3**. Ultima verifica: CI del tag `v1.0.0-rc.2` (run 42641098115, runner Ubuntu; arm64 in emulazione QEMU) | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
+| Linter ufficiale di Umbrel sul pacchetto | **Non ancora eseguito per la rc.3**. Ultima verifica (CI del tag `v1.0.0-rc.2`): nessun errore; nel repository di sviluppo l'unico avviso è l'immagine senza digest, che è invece fissato nello store | job CI *Linter ufficiale Umbrel* |
+| Immagine multi-arch pubblicata | **rc.3 da generare**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3` non è ancora stata costruita né pubblicata (il tag su GHCR risponde 404); il digest sarà scritto da `scripts/publish-store.sh` dopo la CI del rilascio. Ultima pubblicazione: `1.0.0-rc.2@sha256:346ee3bcc5025ce7a40508fbe3ceb0805af541c803fc3dfc501e05a22525f9aa` (CI del tag `v1.0.0-rc.2`) | job CI *Pubblicazione* |
+| 1. Disponibilità pubblica dell'immagine | **Verificata il 10 novembre 2026** con richieste anonime (nessuna credenziale): pacchetto GHCR **pubblico**, token anonimo di pull HTTP 200, pagina pubblica del pacchetto HTTP 200. Il repository GitHub di sviluppo è anch'esso pubblico, ma la visibilità del pacchetto è un'impostazione separata | `scripts/check-ghcr-anonymous.mjs` |
+| 2. Manifest e digest della rc.2 | **Verificati il 10 novembre 2026**, senza credenziali: indice multi-arch `1.0.0-rc.2` HTTP 200 con digest `sha256:346ee3bc…f9aa`, identico al log della CI e al manifest dello store; immagini `linux/amd64` e `linux/arm64` HTTP 200, configurazioni con l'architettura corretta, primo KB di un layer per ciascuna HTTP 206. **Non** è un `docker pull` completo: Docker non era disponibile nell'ambiente di verifica | `scripts/check-ghcr-anonymous.mjs` |
+| 3. Verifica automatica dello store | **Superata il 10 novembre 2026**: Action dello store rilanciata a mano sul contenuto rc.2 (run 42773183607), linter ufficiale con `--check-images` senza errori, icona HTTP 200. Le run del 9 novembre per rc.1 e rc.2 erano fallite con HTTP 401, quando il pacchetto era ancora privato | Action dello store |
+| Repository dello store: clone anonimo, manifest e icona raggiungibili | Verificata il 10 novembre 2026 per il contenuto pubblicato con la rc.2 (commit dello store `4097c8b`): `umbrel-app.yml` e `docker-compose.yml` letti senza credenziali, icona HTTP 200. Il contenuto della rc.3 **non è ancora pubblicato** nello store | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
+| Controllo anonimo bloccante nella CI | Nuovo: dopo il push il job *Pubblicazione* fallisce se il pull anonimo, il manifest del tag, il digest o una delle due architetture non sono verificabili. Provato in locale (test automatici con un registry simulato e richieste reali a GHCR), **non ancora eseguito in GitHub Actions** | job CI *Pubblicazione*, `test/ghcr-anonymous-check.test.js` |
+| 4. Installazione reale su Umbrel (rc.3) | **Non verificata**: la rc.3 non è pubblicata e non è mai stata installata su Umbrel. Nessuna versione risulta installata con successo da questo store su un vero Umbrel | — |
 | Aggiornamento rc.2 → rc.3 su un vero Umbrel (migrazione allo schema v3, backup `pre-migration`, temi) | **Non verificato** (serve il tuo server); provato solo in locale, vedi sopra | — |
-| Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi) | **Non verificata** (serve il tuo consenso e il tuo canale) | — |
-| Overlay dentro OBS | **Non verificata** | — |
+| 5. Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi) | **Non verificata** (serve il tuo consenso e il tuo canale) | — |
+| 5. Overlay dentro OBS | **Non verificata** | — |
+
+Le righe numerate tengono separati cinque livelli che non vanno confusi: (1) l'immagine è pubblica, (2) manifest e digest sono corretti, (3) lo store supera la verifica automatica, (4) l'app si installa davvero su un Umbrel, (5) funziona con Twitch e OBS reali. Oggi sono verificati solo i primi tre, e solo per la rc.2.
 
 ## Come funziona il proxy di Umbrel (verificato sul codice sorgente)
 
@@ -35,7 +40,7 @@ Rischio residuo noto: un'app installata con `network_mode: host` sullo stesso Um
 
 ## Installazione (Metodo A, App Store)
 
-Prerequisito: immagine GHCR scaricabile senza autenticazione (vedi README → *Cosa devi autorizzare tu*). **Oggi non lo è** (HTTP 401 alla richiesta anonima, 9 novembre 2026): finché resta così l'installazione dall'App Store è bloccata, anche se il repository GitHub è pubblico.
+Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10 novembre 2026** per la versione oggi nello store (rc.2): pacchetto pubblico, manifest e architetture amd64/arm64 scaricabili senza credenziali, Action dello store superata. L'installazione vera e propria su un Umbrel **non è ancora stata provata**.
 
 1. Umbrel → **App Store** → **⋯** → **Community App Stores** → `https://github.com/MichaelPiu/piu-umbrel-app-store` → **Add**.
 2. Store **Piu** → **Live Catch** → **Install**.
@@ -176,4 +181,4 @@ Non ancora provato su un Umbrel reale.
 
 ## Pubblicazione di una versione
 
-Vedi README → *Pubblicazione di una nuova versione*. In breve: tag `vX.Y.Z` → CI (test, container amd64/arm64, linter Umbrel, push GHCR) → `scripts/publish-store.sh <store> sha256:<digest>` → push dello store, la cui Action esegue il linter ufficiale con `--check-images`.
+Vedi README → *Pubblicazione di una nuova versione*. In breve: tag `vX.Y.Z` → CI (test, container amd64/arm64, linter Umbrel, push GHCR, controllo anonimo bloccante di manifest, digest e architetture) → `scripts/publish-store.sh <store> sha256:<digest>` → push dello store, la cui Action esegue il linter ufficiale con `--check-images`.

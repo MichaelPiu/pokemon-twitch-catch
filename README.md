@@ -124,7 +124,11 @@ Umbrel installa app di terze parti tramite i **Community App Store**: un reposit
 
 Prerequisito: l'immagine Docker su GitHub Container Registry deve essere **pubblica**, perché Umbrel la scarica senza credenziali (lo controlla l'Action dello store a ogni modifica).
 
-> **Stato attuale:** la richiesta anonima di pull dell'immagine riceve HTTP 401 (controllo del 9 novembre 2026). Finché l'immagine non è scaricabile senza autenticazione, l'installazione con il Metodo A è bloccata. Il repository GitHub pubblico non basta: la visibilità del pacchetto GHCR è un'impostazione separata.
+> **Stato attuale (verificato il 10 novembre 2026, senza credenziali):**
+> - **immagine pubblica**: il repository GitHub e il pacchetto GHCR sono pubblici (sono due impostazioni separate); il token anonimo di pull risponde HTTP 200;
+> - **manifest e digest**: l'indice `1.0.0-rc.2` risponde HTTP 200 con digest `sha256:346ee3bcc5025ce7a40508fbe3ceb0805af541c803fc3dfc501e05a22525f9aa`, lo stesso del log della CI e dello store; le immagini `linux/amd64` e `linux/arm64` e le loro configurazioni si scaricano, e i layer rispondono (HTTP 206). Non è stato eseguito un `docker pull` completo;
+> - **verifica dello store**: l'Action dello store (linter ufficiale con `--check-images`) è superata;
+> - **non ancora verificati**: l'installazione reale su un Umbrel e l'uso con Twitch e OBS reali. La rc.3 non è ancora pubblicata: lo store contiene la rc.2.
 
 Installazione:
 1. Apri l'interfaccia di Umbrel (`http://umbrel.local`).
@@ -571,6 +575,11 @@ La CI esegue anche il **linter ufficiale di Umbrel** (`getumbrel/umbrel-apps`, c
 
 1. Aggiorna `version` in `package.json` e in `piu-live-catch/umbrel-app.yml`, il tag immagine in `piu-live-catch/docker-compose.yml` e `releaseNotes`.
 2. Commit, poi tag `vX.Y.Z` e push: la CI esegue test, test del container (amd64 + arm64) e linter Umbrel, poi pubblica l'immagine multi-arch su GHCR. Il digest compare nel riepilogo della GitHub Action.
+   Subito dopo il push la CI verifica **senza credenziali**, come Umbrel, che l'immagine sia davvero scaricabile (`scripts/check-ghcr-anonymous.mjs`): token anonimo, manifest del tag appena pubblicato, digest uguale a quello della build, presenza e download di `linux/amd64` e `linux/arm64`. Se uno di questi controlli fallisce (401, 403, 404, digest diverso o malformato, architettura mancante, errore di rete o timeout) **il job fallisce**: non usare un digest preso da una run rossa. Lo stesso controllo si può eseguire a mano:
+
+   ```bash
+   node scripts/check-ghcr-anonymous.mjs --repository michaelpiu/pokemon-twitch-catch --tag X.Y.Z --expect-digest sha256:<digest>
+   ```
 3. Prepara lo store pubblico con il digest e pubblicalo:
 
 ```bash
@@ -583,10 +592,10 @@ scripts/publish-store.sh ../piu-umbrel-app-store sha256:<digest>
 
 Alcuni passaggi richiedono i tuoi account o una tua decisione e non sono stati eseguiti dallo sviluppatore:
 
-1. **Immagine Docker scaricabile senza credenziali**: Umbrel scarica l'immagine GHCR `pokemon-twitch-catch` senza autenticazione, quindi il pacchetto deve essere **pubblico** (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*).
+1. **Immagine Docker scaricabile senza credenziali** (fatto): Umbrel scarica l'immagine GHCR `pokemon-twitch-catch` senza autenticazione, quindi il pacchetto deve essere **pubblico** (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*).
    - Il **repository GitHub** di sviluppo è pubblico.
-   - La disponibilità pubblica dell'**immagine GHCR** invece **non è verificata**: al controllo del 9 novembre 2026 la richiesta anonima di pull riceve HTTP 401.
-   - Finché l'immagine non è scaricabile senza autenticazione, **l'installazione su Umbrel dall'App Store (Metodo A) è bloccata**.
+   - Il **pacchetto GHCR** è pubblico: il 10 novembre 2026 token anonimo, manifest della rc.2 e immagini amd64/arm64 hanno risposto HTTP 200 senza credenziali, e l'Action dello store è stata superata.
+   - Resta da provare l'installazione vera su Umbrel (punto 5).
 2. **Twitch**: creare l'applicazione su dev.twitch.tv e autorizzare l'account del canale (e l'eventuale bot) con il codice di attivazione.
 3. **Affiliate/Partner**: necessario per i punti canale.
 4. **Hostname dedicato** (consigliato): record DNS locale o file `hosts`, vedi [Sicurezza dell'accesso](#sicurezza-dellaccesso).

@@ -117,9 +117,19 @@ jobs:
           echo "Tag: \`${{ steps.meta.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "Digest multi-arch: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "IMAGE_DIGEST=${{ steps.build.outputs.digest }}"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      # Passo BLOCCANTE: Umbrel scarica l'immagine senza credenziali. Se GHCR rifiuta
+      # il token anonimo (401/403), il tag non esiste (404), il digest non coincide con
+      # quello della build, manca amd64 o arm64, o c'è un errore di rete/timeout, il job
+      # fallisce: l'errore non è tollerato. Nessuna credenziale: lo script non legge
+      # GITHUB_TOKEN né la configurazione Docker di login.
       - name: Verifica accesso anonimo all'immagine (necessario per Umbrel)
-        continue-on-error: true
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' "https://ghcr.io/token?scope=repository:${GITHUB_REPOSITORY,,}:pull")
-          if [ "$code" = "200" ]; then echo "✅ Immagine scaricabile senza autenticazione" | tee -a $GITHUB_STEP_SUMMARY;
-          else echo "⚠️ Immagine NON pubblica (HTTP $code): Umbrel non potrà scaricarla. Rendi pubblico il pacchetto su GitHub." | tee -a $GITHUB_STEP_SUMMARY; exit 1; fi
+        id: anon
+        run: >-
+          node scripts/check-ghcr-anonymous.mjs
+          --repository "${GITHUB_REPOSITORY,,}"
+          --tag "${{ steps.meta.outputs.version }}"
+          --expect-digest "${{ steps.build.outputs.digest }}"
+          --platforms linux/amd64,linux/arm64
