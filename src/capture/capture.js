@@ -3,6 +3,7 @@
 // sessione LIVE, validità dello spawn, limiti e modalità a vincitore singolo.
 import { nowIso } from '../database/index.js';
 import { upsertUser, isBanned } from '../pokedex/users.js';
+import { recordCaptureEvent, voidCaptureEvent } from '../leaderboard/scoring.js';
 
 export function captureProbability({ settings, rarity, catchModifier = 1, ball, isShiny }) {
   const c = settings.capture;
@@ -112,6 +113,14 @@ export function processAttempt(db, settings, input, rng = Math.random) {
       input.redemptionId || null, user.id, spawnRow.id, spawnRow.session_id, ball.id, input.rewardId || null,
       input.isDemo ? 1 : 0, probability, roll, caught ? 'caught' : 'failed', userPokemonId, input.redeemedAt || nowIso(), source);
 
+    // Classifiche: un evento per cattura riuscita (solo TWITCH/MANUAL, mai DEMO),
+    // nella stessa transazione e con chiave univoca sul tentativo.
+    const attemptId = Number(ins.lastInsertRowid);
+    const leaderboardEvent = caught && !input.isDemo ? recordCaptureEvent(db, {
+      attemptId, userPokemonId, sessionId: spawnRow.session_id, userId: user.id, spawnId: spawnRow.id,
+      pokemonId: spawnRow.pokemon_id, isShiny: !!spawnRow.is_shiny, rarity: spawnRow.rarity, caughtAt: input.redeemedAt || nowIso(),
+    }) : null;
+
     db.run('UPDATE spawn_history SET attempts = attempts + 1, captures = captures + ? WHERE id = ?', caught ? 1 : 0, spawnRow.id);
     db.run(
       `UPDATE stream_sessions SET attempts = attempts + 1, captures = captures + ?, failures = failures + ?,
@@ -135,8 +144,9 @@ export function processAttempt(db, settings, input, rng = Math.random) {
       roll,
       user,
       ball,
-      attemptId: Number(ins.lastInsertRowid),
+      attemptId,
       userPokemonId,
+      leaderboardEvent,
       spawnId: spawnRow.id,
       spawnEnded,
       managed: !!ball.managed_by_app,
@@ -162,6 +172,7 @@ export function handleRedemptionUpdate(db, settings, { redemptionId, status }) {
            desired_status = CASE WHEN desired_status IS NULL THEN NULL ELSE 'CANCELED' END
          WHERE id = ? AND outcome = 'caught'`, a.id);
       if (upd.changes === 1) {
+        voidCaptureEvent(db, a.id, 'canceled');
         if (a.spawn_id) db.run('UPDATE spawn_history SET attempts = MAX(0, attempts - 1), captures = MAX(0, captures - 1) WHERE id = ?', a.spawn_id);
         if (a.session_id) {
           db.run(`UPDATE stream_sessions SET

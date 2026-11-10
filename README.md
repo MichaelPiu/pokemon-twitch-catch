@@ -29,7 +29,7 @@ Live Catch è un gioco interattivo per la tua diretta Twitch che gira interament
 11. [Collegamento OBS](#collegamento-obs)
 12. [Configurazione della dashboard](#configurazione-della-dashboard)
 13. [Comandi chat](#comandi-chat)
-14. [Modalità manuale](#modalità-manuale-gioco-senza-twitch) · [Modifica del Pokédex](#modifica-manuale-del-pokédex)
+14. [Modalità manuale](#modalità-manuale-gioco-senza-twitch) · [Modifica del Pokédex](#modifica-manuale-del-pokédex) · [Classifiche, Hall of Fame e Stream Recap](#classifiche-hall-of-fame-e-stream-recap)
 15. [Backup](#backup) · [Ripristino](#ripristino) · [Aggiornamento](#aggiornamento)
 16. [Risoluzione problemi](#risoluzione-problemi)
 17. [Sviluppo e test](#sviluppo-e-test)
@@ -51,12 +51,13 @@ Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/
 | Comandi | `!pokedex`, `!pokemon`, `!dex @utente`, `!ultimocatturato`, `!classifica`, `!help` — risposte, alias, cooldown, anti-spam, limite bot configurabili. |
 | Overlay OBS | `/overlay` trasparente, aggiornato via WebSocket, animazioni, coda notifiche, colori/posizione/scala configurabili, anteprima in dashboard. |
 | Statistiche | Per diretta, giornaliere, settimanali, mensili, complessive; Pokémon più apparsi/catturati/difficili, utenti più attivi, ball più usate, shiny. |
-| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Overlay, Twitch, DEMO, Backup & Sistema. |
+| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Classifiche, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Overlay, Twitch, DEMO, Backup & Sistema. |
 | Sicurezza | Password scrypt, cambio password obbligatorio, sessioni HttpOnly/SameSite, CSRF, rate limiting, token Twitch cifrati AES-256-GCM, redazione dei segreti nei log. |
 | Backup | Giornaliero automatico con rotazione, manuale, download/upload, ripristino guidato con backup di sicurezza, esportazione/importazione JSON. |
 | Modalità manuale | Avvia il vero motore di gioco dalla dashboard con il canale OFFLINE (prove, OBS, giochi in locale): dati reali marcati MANUAL, sessioni distinte da quelle Twitch, la diretta ha sempre la priorità. |
 | Modifica Pokédex | Ricerca, filtri, correzione, registrazione e rimozione di esemplari con anteprima delle differenze, controllo dei conflitti e registro delle modifiche. |
 | Backup di rete | Backup automatici su una cartella di rete montata (NFS/SMB tramite Umbrel o volume Docker) con manifest e checksum, verifica della connessione, ritentativi, rotazione e ripristino guidato. |
+| Classifiche | Classifica catture e classifica punti per ogni sessione (Twitch o manuale), aggiornate in tempo reale; podio, vincitore, riepilogo e Hall of Fame nell'overlay OBS, visibili finché non li nascondi; risultati congelabili; comando `!leaderboard` per broadcaster e moderatori. |
 | DEMO | Modalità di prova separata (utenti/sessioni marcati DEMO) che non tocca le statistiche reali e non è disponibile durante una diretta. |
 
 ## Architettura
@@ -427,6 +428,7 @@ Pagine pubbliche (disattivabili da *Backup & Sistema*): `/` introduzione, `/poke
 | `!ultimocatturato` | Ultimo Pokémon catturato |
 | `!classifica` | Top allenatori |
 | `!help` | Elenco comandi |
+| `!leaderboard [hide\|freeze\|winner]` | Riservato a broadcaster e moderatori: mostra o nasconde la classifica nell'overlay, congela i risultati (solo broadcaster), mostra il vincitore. Vedi [Classifiche](#classifiche-hall-of-fame-e-stream-recap). |
 
 Prefisso, testi, alias, cooldown globale e per utente, anti-spam e limite di messaggi del bot si configurano in **Comandi chat**. I comandi funzionano **solo durante la diretta**.
 
@@ -452,6 +454,179 @@ Sezione **Modifica Pokédex** (solo amministratore).
 - Prima di salvare viene mostrata la **tabella delle differenze** (prima → dopo); *Annulla* scarta le modifiche.
 - **Origine sempre visibile**: TWITCH, MANUAL, ADMIN, IMPORT, DEMO. Una correzione non cambia l'origine (un esemplare catturato in diretta resta TWITCH, marcato ✎ *corretto*); gli esemplari registrati a mano sono ADMIN. Lo storico dei tentativi e delle sessioni non viene mai modificato: le correzioni toccano solo la collezione.
 - **Sicurezza dei dati**: ogni modifica è in una transazione, i valori sono validati, e un numero di revisione impedisce di sovrascrivere modifiche fatte nel frattempo da un'altra scheda o da una cattura (errore 409, ricarica e riprova). Ogni operazione finisce nel **registro delle modifiche** (chi, quando, cosa, valori prima e dopo).
+
+## Classifiche, Hall of Fame e Stream Recap
+
+Sezione **Classifiche** della dashboard. *Funzionalità della versione in sviluppo, non pubblicata.*
+
+### Da dove arrivano i dati
+
+- Ogni **cattura riuscita** del motore di gioco in una sessione **TWITCH** o **MANUAL** scrive un *evento di classifica* (tabella `leaderboard_events`). L'evento nasce nella stessa transazione della cattura. Le classifiche si calcolano solo da questi eventi, non dal contenuto del Pokédex.
+- **Esclusi sempre**:
+  - sessioni DEMO;
+  - esemplari registrati o corretti a mano nel Pokédex;
+  - importazioni JSON;
+  - tentativi falliti o rifiutati.
+- **Catture annullate**: se un riscatto viene revocato su Twitch e l'opzione *Revoca la cattura se annullata* è attiva, la cattura esce dalle classifiche live. L'evento resta nel database, marcato come annullato.
+- **Nessun doppio conteggio**: ogni evento è legato al tentativo di cattura da un vincolo univoco. Un riscatto ripetuto da Twitch o un evento duplicato non assegnano punti due volte.
+- **Una classifica per sessione**: le catture di una sessione manuale contano solo lì, quelle di una diretta solo nella diretta. La Hall of Fame le somma, con filtro Twitch / Manuale / Tutte.
+
+### Le due classifiche e i punteggi
+
+- **Classifica catture**: numero di Pokémon catturati nella sessione. Ogni cattura vale 1, qualunque sia la rarità.
+- **Classifica punti**: `punti base + bonus rarità + bonus shiny`. Valori iniziali:
+
+| Evento | Punti |
+|---|---:|
+| Cattura (punti base) | 10 |
+| Comune | +0 |
+| Non comune | +5 |
+| Raro | +15 |
+| Molto raro (rarità *Epico*) | +30 |
+| Leggendario | +50 |
+| Mitico | +50 |
+| Shiny | +50 |
+
+- **Rarità**: conta quella del Pokémon al momento dell'incontro, salvata nello spawn. Un Pokémon senza rarità riconosciuta riceve solo i punti base.
+- **Modifica dei valori**: in **Classifiche → Punteggi e comandi**. Ogni modifica crea una **nuova versione delle regole**, che vale per le catture successive.
+- **Punti già assegnati**: ogni evento conserva punti base, bonus, rarità e versione delle regole usate. Non viene mai ricalcolato: un trigger del database impedisce di modificarlo.
+- **Parità**:
+  - nella classifica catture decide il punteggio;
+  - nella classifica punti decide il numero di catture;
+  - poi passa avanti chi ci è arrivato prima.
+
+### Giocatori
+
+- **Spettatori Twitch**: sono identificati dal **Twitch User ID**; il nickname è solo il nome visualizzato.
+  - Chi cambia nickname resta lo stesso giocatore, con le stesse statistiche; il nome precedente finisce nello **storico dei nomi**.
+  - Un altro account con lo stesso nome è un giocatore diverso.
+- **Giocatori locali** (sessioni manuali): hanno un ID locale stabile (`local:<nome>`), separato dagli account Twitch. Nessun Twitch ID viene inventato e i due profili non vengono mai uniti automaticamente.
+- **Sezione Giocatori**:
+  - ricerca, anche per nickname precedente o Twitch User ID;
+  - profilo con statistiche Twitch, manuali e totali, sessioni, ultime catture con il dettaglio dei punti, storico dei nomi;
+  - **nome visualizzato** modificabile: lasciando il campo vuoto torna il nickname Twitch.
+- **Rinomina**: viene registrata nel registro delle operazioni. Non modifica catture, eventi o risultati già congelati.
+
+### Controlli della dashboard
+
+Si sceglie la sessione da mostrare: quella corrente o una precedente, con filtro Twitch/Manuale e filtro per giocatore.
+
+Per ogni giocatore la tabella mostra:
+- posizione, catture e punti;
+- shiny e specie diverse;
+- Pokémon più raro.
+
+Per la sessione mostra:
+- sessione di origine;
+- stato della classifica: LIVE, CONGELATA o FINALE;
+- partecipanti, data e ora.
+
+| Pulsante | Funzione |
+|---|---|
+| Classifica punti / catture | Sceglie quale classifica mostrare (dashboard e overlay) |
+| Mostra classifica | Top 10 nell'overlay |
+| Podio | Primi tre con il loro Pokémon simbolo (il più raro catturato) |
+| Mostra vincitore | Schermata del vincitore con animazione |
+| Riepilogo sessione | Statistiche finali nell'overlay |
+| Nascondi classifica | Toglie la schermata dall'overlay |
+| Congela risultati / Sblocca risultati | Vedi sotto |
+| Aggiorna | Ricalcola e reinvia all'overlay (i risultati congelati non cambiano) |
+| Anteprima overlay | Mostra la schermata in un'anteprima privata, senza pubblicarla in OBS |
+
+**La schermata resta visibile finché non premi Nascondi** (o scrivi `!leaderboard hide`). Non sparisce:
+- dopo un certo tempo;
+- a fine diretta;
+- al riavvio dell'app (lo stato è salvato nel database).
+
+**La sessione mostrata è sempre indicata in modo esplicito**:
+- "Sessione corrente" senza una sessione in corso viene rifiutata, mai sostituita da una sessione precedente;
+- l'inizio di una nuova diretta non sostituisce di nascosto una classifica finale già in onda.
+
+### Congelamento dei risultati
+
+- **Congela risultati** salva un'**istantanea definitiva**: ordine, catture, punti, nomi in quel momento, checksum SHA-256.
+- **Dopo il congelamento**:
+  - la classifica della sessione non si aggiorna più automaticamente, anche dopo la fine della sessione;
+  - le catture successive vengono comunque registrate, e la dashboard indica quante sono;
+  - il riepilogo usa i risultati congelati.
+- **Nessuna sovrascrittura**: finché l'istantanea è attiva, congelare di nuovo viene rifiutato. Prima bisogna sbloccarla.
+- **Sblocca risultati** richiede conferma e **motivazione**. Il registro delle operazioni salva chi, quando, perché e cosa è cambiato rispetto all'istantanea.
+- **Storico delle istantanee**: quella sbloccata resta salvata; un nuovo congelamento ne crea una nuova versione. Il database impedisce di modificarle o cancellarle.
+
+### Comando `!leaderboard`
+
+| Comando | Chi | Azione |
+|---|---|---|
+| `!leaderboard` | Broadcaster e moderatori autorizzati | Mostra la classifica della diretta |
+| `!leaderboard hide` | Broadcaster e moderatori autorizzati | Nasconde la classifica |
+| `!leaderboard freeze` | Solo broadcaster | Congela i risultati |
+| `!leaderboard winner` | Broadcaster e moderatori autorizzati | Mostra il vincitore |
+
+- **Verifica del ruolo**: il server usa i dati dell'evento Twitch (ID di chi scrive e badge del canale), **mai il nickname**.
+- **Impostazioni** in **Punteggi e comandi**:
+  - escludere i moderatori;
+  - limitarli a un elenco di Twitch User ID;
+  - disattivare le risposte in chat (brevi, una riga).
+- **Chi non è autorizzato** viene ignorato senza risposta e registrato nel log. Il rifiuto non consuma il cooldown del comando.
+- **Registro**: ogni azione eseguita finisce nel registro delle operazioni come `twitch:<login>`, via chat.
+- **Cooldown, alias e attivazione** si configurano in **Comandi chat**.
+- **Solo durante una diretta Twitch**: nelle sessioni manuali si usa la dashboard. La prova del comando dalla dashboard non esegue azioni.
+
+### Overlay OBS
+
+- **Nessuna nuova sorgente**: le schermate appaiono nella stessa sorgente `/overlay`, sopra il gioco, con i colori e il carattere del tema attivo.
+- **Aggiornamento** via WebSocket, senza ricaricare la Browser Source.
+- **Etichette**: **DIRETTA TWITCH** o **SESSIONE MANUALE**, e **LIVE**, **RISULTATI CONGELATI** o **CLASSIFICA FINALE**.
+- **Schermate**:
+  - classifica Top 10 (catture o punti);
+  - podio;
+  - vincitore;
+  - riepilogo della sessione;
+  - Hall of Fame.
+
+### Hall of Fame
+
+Classifica permanente, separata da quelle delle singole sessioni.
+
+- **Contenuto**:
+  - top giocatori per punti e per catture;
+  - catture totali e shiny;
+  - sessioni partecipate;
+  - Pokémon più rari.
+- **Filtro**: Twitch / Manuale / Tutte.
+- **Nell'overlay**: con *Mostra Hall of Fame*.
+- **Solo catture competitive**: niente DEMO, registrazioni manuali o importazioni.
+
+### Stream Recap
+
+Alla chiusura di ogni sessione Twitch o manuale viene salvato un riepilogo con:
+- durata e partecipanti;
+- Pokémon incontrati e catturati, percentuale di cattura, shiny;
+- Pokémon più rari e più catturato;
+- vincitori delle due classifiche e Top 10.
+
+È consultabile in **Classifiche → Riepiloghi** anche con Twitch scollegato. I riepiloghi delle sessioni manuali sono marcati MANUALE.
+
+Per una sessione ancora in corso, o chiusa prima di questa versione, viene mostrato un riepilogo provvisorio, non salvato. *Rigenera* lo ricalcola su richiesta e l'operazione finisce nel registro operazioni.
+
+### Differenze tra sessioni Twitch e manuali
+
+| | Diretta Twitch | Sessione manuale |
+|---|---|---|
+| Classifica della sessione | Sì | Sì (separata) |
+| Giocatori | Spettatori (Twitch User ID) | Giocatori locali o spettatori già registrati |
+| Comando `!leaderboard` | Sì | No: si usa la dashboard |
+| Riepilogo | Sì | Sì, marcato MANUALE |
+| Hall of Fame | Filtro *Twitch* | Filtro *Manuale* |
+
+### Aggiornamento del database e predisposizioni
+
+- **Migrazione 5**: aggiunge tabelle e colonne senza modificare i dati esistenti. Le catture registrate prima dell'aggiornamento (dirette e sessioni manuali, mai DEMO) entrano nelle classifiche con le regole iniziali e sono marcate *storiche*.
+- **Backup**: le nuove tabelle sono incluse in tutti i backup, locali e di rete, e tornano allo stato del backup con il ripristino.
+- **Predisposizioni per le fasi successive**:
+  - il servizio classifiche emette un evento a ogni cattura valida: è il punto di aggancio per **achievement** e **obiettivi comunitari**;
+  - le regole di punteggio sono versionate, così si potranno introdurre **eventi speciali** temporanei con ritorno automatico alle regole normali.
+- **Non ancora implementati**: achievement, obiettivi ed eventi speciali.
 
 ## Backup
 
@@ -522,10 +697,13 @@ Versioni dello schema del database:
 | 1.0.0-rc.1, 1.0.0-rc.2 | v2 |
 | 1.0.0-rc.3 (Overlay Themes) | v3: tabella `overlay_themes` |
 | versione in sviluppo (modalità manuale, backup di rete, modifica Pokédex) — **non pubblicata** | v4: tipo di sessione, origine degli esemplari, tabella `admin_audit` |
+| versione in sviluppo (classifiche, Hall of Fame, Stream Recap) — **non pubblicata** | v5: eventi e istantanee delle classifiche, regole di punteggio versionate, riepiloghi, storico dei nomi |
 
 Un'app non apre mai un database (o un backup) con uno schema più recente di quello che conosce: l'avvio o il ripristino vengono rifiutati con un messaggio chiaro e **senza modificare nulla**. Fanno eccezione le versioni fino alla 1.0.0-rc.2, che non hanno questo controllo (vedi sotto).
 
 ### Tornare a una versione precedente (rollback)
+
+**Dallo schema v5 alla 1.0.0-rc.3.** Stessa procedura del caso v4 qui sotto: la migrazione 5 aggiunge solo tabelle, colonne e viste, ma la rc.3 rifiuta un database v5 come uno v4. *Non ancora provato su un Umbrel reale.*
 
 **Dallo schema v4 alla 1.0.0-rc.3.** La migrazione 4 aggiunge solo colonne e una tabella, ma la rc.3 rifiuta di avviarsi su un database v4 (controllo dello schema). Per tornare alla rc.3 bisogna rimettere il backup `…-pre-migration.sqlite.gz` creato all'aggiornamento: a app ferma, decomprimilo in `data/db/livecatch.sqlite` (dopo aver spostato altrove il database attuale e i file `-wal`/`-shm`), poi avvia la rc.3. Le modifiche fatte dopo l'aggiornamento restano nel database spostato. *Procedura non ancora provata su un Umbrel reale.*
 
@@ -615,6 +793,7 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - token davvero revocato (rinnovo rifiutato con 400): procedura di revoca;
   - recupero automatico e rinnovo del token deduplicato.
 - **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
+- **Classifiche** (`test/leaderboard.test.js`): classifiche catture e punti, bonus rarità e shiny, punteggi immutabili e regole versionate, identità Twitch (User ID, cambio nickname) e locale, separazione Twitch/MANUAL, esclusione DEMO e modifiche del Pokédex, nessun doppio conteggio, catture annullate, `!leaderboard` autorizzato e rifiutato, attivazione da dashboard e da comando, nascondi, persistenza dopo il riavvio, congelamento, sblocco, istantanee immutabili, rinomina, aggiornamento WebSocket, overlay (DOM di prova), classifica finale persistente, Hall of Fame, Stream Recap, backup e ripristino, migrazione dallo schema v4.
 - **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):
   - preset, validazione, importazione ed esportazione, persistenza e migrazione;
   - simulatore isolato e bloccato sull'overlay pubblico in LIVE, PAUSED e DEMO;

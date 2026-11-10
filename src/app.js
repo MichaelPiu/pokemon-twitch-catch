@@ -35,6 +35,8 @@ import { registerBackupRoutes } from './api/backups.js';
 import { registerPokedexRoutes } from './api/pokedex.js';
 import { ThemeStore } from './overlay/themes.js';
 import { OverlaySimulator } from './overlay/simulator.js';
+import { LeaderboardService } from './leaderboard/leaderboard.js';
+import { registerLeaderboardRoutes } from './api/leaderboard.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -117,8 +119,16 @@ export class App {
     });
     this.sm = new StateMachine({ db: this.db, log: this.logger.child('lifecycle') });
     this.engine = new GameEngine({ db: this.db, gameSettings: this.gameSettings, hub: this.hub, log: this.logger.child('game'), timers: this.timers, ...(this.rng ? { rng: this.rng } : {}) });
+    // Classifiche: alimentate dalle catture del motore, riepilogo a fine sessione.
+    this.leaderboard = new LeaderboardService({
+      db: this.db, hub: this.hub, log: this.logger.child('classifiche'), timers: this.timers,
+      currentSession: () => (['live', 'manual'].includes(this.engine.mode) && this.engine.session ? this.engine.sessions.byId(this.engine.session.id) : null),
+    });
+    this.engine.sessions.onClosed = (s) => this.leaderboard.onSessionClosed(s);
+    this.engine.on('attempt', (res) => { if (res?.leaderboardEvent) this.leaderboard.onCapture(res.leaderboardEvent); });
+    this.engine.on('revoked', ({ sessionId }) => this.leaderboard.changed(sessionId));
     this.engine.recoverAfterRestart();
-    this.commands = new CommandHandler({ db: this.db, commandGlobals: this.gameSettings, log: this.logger.child('commands') });
+    this.commands = new CommandHandler({ db: this.db, commandGlobals: this.gameSettings, log: this.logger.child('commands'), leaderboard: this.leaderboard });
 
     this.credentials = new TwitchCredentials({ adminSettings: this.adminSettings, box: this.box });
     this.oauth = new TwitchOAuth({ config: c, credentials: this.credentials, log: this.logger.child('oauth'), fetchImpl: this.fetchImpl });
@@ -144,7 +154,7 @@ export class App {
     // Gioco che si attiva (diretta, ripresa, DEMO): via gli elementi simulati dagli overlay.
     this.sm.on('transition', ({ to }) => { if (to === STATES.LIVE || to === STATES.PAUSED) this.simulator.purge(`stato ${to}`); });
     this.engine.on('status', () => { if (this.engine.mode) this.simulator.purge(this.engine.mode === 'demo' ? 'DEMO' : 'diretta'); });
-    this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.themes.effective() }));
+    this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.themes.effective(), leaderboard: this.leaderboard.overlayPayload() }));
     this.hub.setSnapshot('admin', () => this.liveStatus());
     this.engine.on('status', () => this.hub.admin('status', this.liveStatus()));
     // Aggiorna dashboard e barra superiore anche per i cambi di stato Twitch (non solo del motore).
@@ -163,6 +173,7 @@ export class App {
     registerGameRoutes(this);
     registerBackupRoutes(this);
     registerPokedexRoutes(this);
+    registerLeaderboardRoutes(this);
 
     if (this.timers) { this.backups.startScheduler(); this.networkBackups.startScheduler(); }
     this.pruneTimer = setInterval(() => this.prune(), 6 * 3600 * 1000);
@@ -469,6 +480,7 @@ export class App {
     this.engine.suspended = false;
     this.engine.recoverAfterRestart('restore');
     this.engine.emitStatus();
+    this.leaderboard.pushOverlay(); // schermata classifica come salvata nel backup ripristinato
     this.monitor.start().catch(() => {});
   }
 
@@ -477,6 +489,7 @@ export class App {
     this.proxy?.stop();
     this.monitor?.stop();
     this.engine?.shutdown();
+    this.leaderboard?.shutdown();
     this.simulator?.stop();
     this.backups?.stop();
     this.networkBackups?.stop();

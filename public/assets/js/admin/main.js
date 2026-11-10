@@ -13,6 +13,7 @@ export function onLive(fn) { store.listeners.add(fn); return () => store.listene
 const NAV = [
   ['overview', 'home', 'Panoramica', 'Stato del gioco, diretta corrente e attività in tempo reale'],
   ['game', 'gamepad', 'Controllo gioco', 'Modalità automatica (Twitch) o manuale: avvia e ferma il gioco senza andare LIVE'],
+  ['leaderboard', 'trophy', 'Classifiche', 'Classifiche di sessione, overlay, risultati congelati, Hall of Fame e riepiloghi'],
   ['stats', 'chart', 'Statistiche', 'Andamento delle dirette, classifiche e confronti'],
   ['users', 'users', 'Pokédex e Utenti', 'Spettatori, collezioni, doppioni e storico catture'],
   ['pokedex', 'star', 'Modifica Pokédex', 'Correggi, registra o rimuovi i Pokémon di un allenatore, con storico delle modifiche'],

@@ -15,6 +15,7 @@ export class SessionService {
   constructor({ db, log }) {
     this.db = db;
     this.log = log;
+    this.onClosed = null; // impostato dal servizio classifiche (riepilogo a fine sessione)
   }
 
   open({ broadcastId = null, title = null, startedAt = null, isDemo = false, kind = null }) {
@@ -76,7 +77,12 @@ export class SessionService {
       this.refreshCounters(id);
       this.db.run('UPDATE stream_sessions SET ended_at = ?, duration_s = ?, end_reason = ? WHERE id = ?', end, duration, reason, id);
       this.log.info(`Sessione #${id} chiusa (${reason})`, { durationS: duration });
-      return this.byId(id);
+      const closed = this.byId(id);
+      // Riepilogo della sessione (classifiche): un errore non impedisce la chiusura.
+      if (this.onClosed) {
+        try { this.onClosed(closed); } catch (e) { this.log.warn('Riepilogo della sessione non generato', { sessionId: id, message: e.message }); }
+      }
+      return closed;
     });
   }
 

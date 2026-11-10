@@ -470,10 +470,16 @@ export class TwitchMonitor {
   onChat(ev) {
     if (this.sm.state !== STATES.LIVE || !this.engine.running) return { detail: 'gioco offline: ignorato' };
     if (ev.chatter_user_id === this.creds.getToken('bot')?.userId) return { detail: 'messaggio del bot' };
+    // Ruolo di chi scrive dall'evento firmato da Twitch (ID e badge), mai dal nickname.
+    const broadcasterId = this.creds.getToken('broadcaster')?.userId;
+    const badges = Array.isArray(ev.badges) ? ev.badges : [];
     const out = this.commands.handle({
       text: ev.message?.text || '',
       user: { twitchId: ev.chatter_user_id, login: ev.chatter_user_login, displayName: ev.chatter_user_name },
       messageId: ev.message_id,
+      live: true,
+      isBroadcaster: !!broadcasterId && String(ev.chatter_user_id) === String(broadcasterId),
+      isModerator: badges.some((b) => b?.set_id === 'moderator'),
     });
     if (out?.reply) {
       this.chat.send(out.reply, ev.message_id);

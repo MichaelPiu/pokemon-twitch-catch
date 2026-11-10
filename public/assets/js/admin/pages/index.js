@@ -13,5 +13,6 @@ import { system } from './system.js';
 import { settings } from './settings.js';
 import { game } from './game.js';
 import { pokedex } from './pokedex.js';
+import { leaderboard } from './leaderboard.js';
 
-export const pages = { overview, game, stats, sessions, users, pokedex, spawn, pokemon, balls, commands, overlay, twitch, demo, system, settings };
+export const pages = { overview, game, stats, sessions, users, pokedex, leaderboard, spawn, pokemon, balls, commands, overlay, twitch, demo, system, settings };

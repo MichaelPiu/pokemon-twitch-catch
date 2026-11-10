@@ -13,6 +13,7 @@
 //   riceve impostazioni ed eventi di prova solo dalla pagina che la contiene.
 import { effectiveSettings, sanitizeConfig, defaultConfig, fontStack, LAYOUTS } from './overlay/theme-core.js';
 import { EventQueue } from './overlay/event-queue.js';
+import { LeaderboardLayer } from './overlay/leaderboard-view.js';
 import { TYPE_IT } from './lib.js'; // nomi dei tipi: un'unica tabella per dashboard e overlay
 
 const params = new URLSearchParams(location.search);
@@ -38,6 +39,8 @@ const notesEl = document.getElementById('notes');
 anchor.append(notesEl, spawnEl);
 canvas.appendChild(anchor);
 stage.appendChild(canvas);
+// Schermate delle classifiche: livello separato, non toccato da fine diretta o azzeramenti.
+const board = new LeaderboardLayer(canvas);
 
 let theme = null; // { base, config, ... }
 let current = null;
@@ -427,7 +430,10 @@ function handle(type, data, ts) {
       // Il tema si applica subito; lo spawn reale viene mostrato senza attese.
       applySettings(data.settings).catch(() => {});
       if (data.active && data.spawn) renderSpawn(data.spawn);
+      board.reset();
+      board.apply(data.leaderboard || { visible: false }, { animate: false });
       break;
+    case 'leaderboard': board.apply(data); break;
     case 'settings': applySettings(data).catch(() => {}); break; // immediato, fuori dalla coda
     case 'spawn': onSpawn(data); break;
     case 'throw': onThrow(data); break;
@@ -445,7 +451,7 @@ function handle(type, data, ts) {
 window.__liveCatchOverlay = {
   state: () => ({
     base: theme?.base, name: theme?.name, rev: theme?.rev, spawn: current?.id ?? null, sim: !!current?.sim,
-    attempts: current?.attempts ?? null, notes: notesEl.childElementCount, pendingNotes: queue.length,
+    attempts: current?.attempts ?? null, notes: notesEl.childElementCount, pendingNotes: queue.length, leaderboard: board.info(),
     queue: { size: events.size, busy: events.busy, limit: events.limit, ...events.stats },
   }),
 };

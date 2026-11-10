@@ -135,6 +135,16 @@ export const DEFAULT_COMMANDS = [
     options: { size: 5 },
   },
   {
+    // Riservato a broadcaster e moderatori autorizzati (vedi Classifiche → Comandi).
+    command: 'leaderboard',
+    aliases: [],
+    response: 'Classifica della diretta sullo schermo!',
+    response_empty: null,
+    global_cooldown_s: 3,
+    user_cooldown_s: 3,
+    options: {},
+  },
+  {
     command: 'help',
     aliases: ['comandi'],
     response: 'Comandi disponibili: {commands} — Usa i punti canale per lanciare le Poké Ball!',

@@ -34,8 +34,10 @@ function relTime(iso) {
 }
 
 export class CommandHandler {
-  constructor({ db, commandGlobals, log }) {
+  constructor({ db, commandGlobals, log, leaderboard = null }) {
     this.db = db;
+    this.leaderboard = leaderboard; // comando !leaderboard (riservato a broadcaster e moderatori)
+    this.unauthorized = 0;
     this.globals = commandGlobals; // SettingsStore (game_settings key 'commands')
     this.log = log;
     this.cooldowns = new Map(); // `${cmd}` e `${cmd}:${user}` -> timestamp
@@ -69,6 +71,17 @@ export class CommandHandler {
 
     const userRow = this.db.get('SELECT * FROM twitch_users WHERE twitch_id = ?', String(msg.user.twitchId));
     if (userRow && isBanned(this.db, userRow.id)) return null;
+
+    // !leaderboard: autorizzazione PRIMA dei cooldown (uno spettatore non può
+    // consumare il cooldown del moderatore). Disponibile solo durante la diretta.
+    if (cmd.command === 'leaderboard') {
+      const sub = (args[0] || '').toLowerCase();
+      if (!msg.live || !this.leaderboard || !this.leaderboard.authorize({ isBroadcaster: msg.isBroadcaster, isModerator: msg.isModerator, twitchId: msg.user.twitchId }, sub)) {
+        this.unauthorized++;
+        this.log.info('Comando !leaderboard rifiutato: utente non autorizzato', { twitchId: String(msg.user.twitchId), sub: sub.slice(0, 12) });
+        return { ignored: 'unauthorized' };
+      }
+    }
 
     const gKey = cmd.command;
     const uKey = `${cmd.command}:${msg.user.twitchId}`;
@@ -120,8 +133,13 @@ export class CommandHandler {
         if (!top.length) return render(cmd.response_empty || cmd.response, base);
         return render(cmd.response, { ...base, top: top.map((t) => `${t.rank}. ${t.displayName} (${t.total})`).join(' · ') });
       }
+      case 'leaderboard': {
+        // Dalla prova della dashboard (o fuori diretta) nessuna azione: solo descrizione.
+        if (!msg.live || !this.leaderboard) return '(prova) !leaderboard [hide|freeze|winner] è riservato a broadcaster e moderatori durante la diretta: nessuna azione eseguita.';
+        return this.leaderboard.chatCommand((args[0] || '').toLowerCase(), { user: msg.user });
+      }
       case 'help': {
-        const cmds = listCommands(this.db).filter((c) => c.enabled && (c.command !== 'dex' || c.options.allowOthers))
+        const cmds = listCommands(this.db).filter((c) => c.enabled && c.command !== 'leaderboard' && (c.command !== 'dex' || c.options.allowOthers))
           .map((c) => conf.prefix + c.command + (c.command === 'dex' ? ' @utente' : '')).join(' ');
         return render(cmd.response, { ...base, commands: cmds });
       }

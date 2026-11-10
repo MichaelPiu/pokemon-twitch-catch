@@ -1,5 +1,28 @@
 # Changelog
 
+## Non pubblicata — Classifiche, Hall of Fame e Stream Recap
+
+Sviluppata nel ramo `feature/leaderboard` (basato su `feature/manual-backup-pokedex`). **Non è una release**: nessun tag, nessuna immagine, store invariato (resta la 1.0.0-rc.3).
+
+### Database: schema v5 (migrazione 5)
+- `twitch_users`: colonne `custom_name`, `custom_name_at`, `custom_name_by` (nome visualizzato scelto dall'admin).
+- Nuove tabelle: `player_aliases` (storico dei nomi), `leaderboard_rule_versions` (regole di punteggio versionate), `leaderboard_events` (un evento per cattura valida, univoco sul tentativo, immutabile), `leaderboard_snapshots` (risultati congelati, immutabili, non cancellabili), `leaderboard_settings`, `stream_recaps`.
+- Viste: `players`, `leaderboard_entries` (classifica calcolata dagli eventi, nessuna seconda copia dei dati).
+- Le catture reali già presenti (Twitch e manuali) entrano negli eventi con le regole iniziali (`source = 'backfill'`); DEMO e catture annullate escluse. Backup `pre-migration` automatico.
+
+### Classifiche
+- Classifica catture e classifica punti per sessione, in tempo reale; punteggio = base + bonus rarità + bonus shiny, configurabile, con regole versionate e punti salvati alla cattura.
+- Sezione **Classifiche** della dashboard: sessione corrente o precedente, filtri Twitch/Manuale e giocatore, controlli dell'overlay, congelamento e sblocco con motivazione, istantanee, anteprima privata.
+- Overlay OBS: Top 10, podio, vincitore, riepilogo, Hall of Fame, via WebSocket; restano visibili finché non vengono nascoste (anche dopo la fine della diretta e dopo un riavvio).
+- Comando `!leaderboard [hide|freeze|winner]` per broadcaster e moderatori autorizzati (ruolo dall'evento Twitch, mai dal nickname), solo durante le dirette.
+- Giocatori: identità per Twitch User ID con storico dei nickname, giocatori locali separati, ricerca, profilo, nome visualizzato modificabile (registrato, non tocca i dati storici).
+- Hall of Fame permanente con filtri; Stream Recap salvato alla chiusura di ogni sessione Twitch e manuale.
+- Registro operazioni: congelamenti, sblocchi, mostra/nascondi, regole, comandi, rinomine, rigenerazione dei riepiloghi.
+
+### Test
+- `test/leaderboard.test.js`: 30 test (i 28 casi richiesti, più catture annullate e rinomina). Suite completa: 247/247 su Node 24.22.2 e 26.13.0.
+- `test/network-backup.test.js`: le verifiche "schema invariato" usano la versione corrente invece del numero 4; il backup costruito per far fallire la migrazione toglie le righe di migrazione dalla 4 in su (prima solo la 4).
+
 ## Non pubblicata — Modalità manuale, backup di rete e modifica del Pokédex
 
 Sviluppata nel ramo `feature/manual-backup-pokedex`. **Non è una release**: nessun tag, nessuna immagine, store invariato (resta la 1.0.0-rc.3).

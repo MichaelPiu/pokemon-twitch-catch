@@ -8,6 +8,13 @@ export function upsertUser(db, { twitchId, login, displayName, isDemo = false, o
   const lg = String(login || '').toLowerCase();
   const dn = displayName || login || twitchId;
   const org = isDemo ? 'demo' : origin || (String(twitchId).startsWith('local:') ? 'local' : 'twitch');
+  // Cambio di nickname su Twitch: stesso profilo (stesso Twitch User ID), il nome
+  // precedente resta nello storico dei nomi.
+  const prev = db.get('SELECT id, login, display_name, origin, last_seen_at FROM twitch_users WHERE twitch_id = ?', String(twitchId));
+  if (prev && prev.origin === 'twitch' && (prev.display_name !== dn || prev.login !== lg)) {
+    db.run("INSERT INTO player_aliases (user_id, kind, login, display_name, last_seen_at) VALUES (?, 'twitch', ?, ?, ?)",
+      prev.id, prev.login, prev.display_name, now);
+  }
   db.run(
     `INSERT INTO twitch_users (twitch_id, login, display_name, is_demo, first_seen_at, last_seen_at, origin)
      VALUES (?, ?, ?, ?, ?, ?, ?)

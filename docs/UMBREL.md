@@ -186,6 +186,18 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 8. Overlay Designer con OBS: cambia tema a gioco fermo, la sorgente si aggiorna senza ricaricarla; una simulazione su OBS mostra il badge "SIMULAZIONE"; in diretta il simulatore resta nell'anteprima privata.
 9. Rollback (facoltativo, su un'installazione di prova): segui README → *Tornare a una versione precedente*. Con la rc.2 i dati devono restare tutti e l'overlay tornare all'aspetto precedente.
 
+### Classifiche (versione in sviluppo, non pubblicata)
+
+Da provare solo con un'immagine compilata da questo ramo (Metodo B), su un'installazione di prova o dopo un backup:
+
+1. *Backup e Sistema*: **schema DB v5**; aggiornando da rc.3 deve esserci il backup `…-pre-migration.sqlite.gz`. Le catture già esistenti compaiono in *Classifiche → Hall of Fame*.
+2. Sessione manuale con OBS: lancia qualche Poké Ball, poi *Classifiche → Mostra classifica*, *Podio*, *Mostra vincitore*: la sorgente `/overlay` si aggiorna senza ricaricarla e mostra **SESSIONE MANUALE**.
+3. Ferma la sessione: la schermata resta in OBS (CLASSIFICA FINALE) finché non premi *Nascondi*; il riepilogo compare in *Riepiloghi*.
+4. Riavvia l'app da Umbrel con una classifica visibile: deve ricomparire da sola nell'overlay.
+5. Diretta di prova: `!leaderboard` da moderatore e da broadcaster, `!leaderboard freeze` solo da broadcaster; da uno spettatore normale nessun effetto.
+6. *Congela risultati*, poi un'altra cattura: la classifica non cambia; *Sblocca* chiede la motivazione.
+7. Crea un backup di rete e ripristinalo: classifiche e risultati congelati tornano come nel backup.
+
 ## Tornare a una versione precedente
 
 La procedura completa è nel README (*Aggiornamento → Tornare a una versione precedente*). In breve, per Umbrel:

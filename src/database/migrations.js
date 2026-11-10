@@ -339,6 +339,156 @@ CREATE INDEX idx_admin_audit_created ON admin_audit(created_at);
 CREATE INDEX idx_admin_audit_target ON admin_audit(target_type, target_id);
 `,
   },
+  {
+    id: 5,
+    name: 'classifiche_hall_of_fame_recap',
+    sql: `
+-- Profilo del giocatore: la tabella twitch_users resta l'unica anagrafica
+-- (twitch_id = Twitch User ID, oppure "local:<nome>" per i giocatori locali delle
+-- sessioni manuali). custom_name è il nome scelto dall'amministratore: se valorizzato
+-- sostituisce il nickname Twitch nelle classifiche, senza toccare i dati storici.
+ALTER TABLE twitch_users ADD COLUMN custom_name TEXT;
+ALTER TABLE twitch_users ADD COLUMN custom_name_at TEXT;
+ALTER TABLE twitch_users ADD COLUMN custom_name_by TEXT;
+
+-- Storico dei nomi: nickname Twitch precedenti (kind 'twitch') e rinomine
+-- dell'amministratore (kind 'admin').
+CREATE TABLE player_aliases (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES twitch_users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('twitch','admin')),
+  login TEXT,
+  display_name TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  changed_by TEXT
+);
+CREATE INDEX idx_player_aliases_user ON player_aliases(user_id, last_seen_at);
+
+-- Vista di comodo: il profilo come lo usano le classifiche.
+CREATE VIEW players AS
+  SELECT id, twitch_id, origin, login, display_name AS twitch_name, custom_name,
+         COALESCE(custom_name, display_name) AS name, first_seen_at, last_seen_at
+  FROM twitch_users WHERE is_demo = 0;
+
+-- Regole di punteggio versionate: ogni modifica crea una nuova versione, le
+-- versioni precedenti non cambiano più (i punti già assegnati restano quelli).
+CREATE TABLE leaderboard_rule_versions (
+  id INTEGER PRIMARY KEY,
+  rules TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by TEXT
+);
+INSERT INTO leaderboard_rule_versions (id, rules, created_by) VALUES (1,
+  '{"base":10,"rarity":{"common":0,"uncommon":5,"rare":15,"epic":30,"legendary":50,"mythical":50},"shiny":50}', 'sistema');
+
+-- Un evento per ogni cattura valida di una sessione TWITCH o MANUAL, scritto nella
+-- stessa transazione della cattura. capture_attempt_id univoco: la stessa cattura
+-- non assegna mai punti due volte. Punti e rarità sono salvati al momento della
+-- cattura e non vengono ricalcolati. Una cattura annullata su Twitch (riscatto
+-- revocato) viene marcata voided_at, non cancellata.
+CREATE TABLE leaderboard_events (
+  id INTEGER PRIMARY KEY,
+  capture_attempt_id INTEGER NOT NULL UNIQUE REFERENCES capture_attempts(id) ON DELETE CASCADE,
+  user_pokemon_id INTEGER UNIQUE REFERENCES user_pokemon(id) ON DELETE SET NULL,
+  session_id INTEGER NOT NULL REFERENCES stream_sessions(id) ON DELETE CASCADE,
+  session_kind TEXT NOT NULL CHECK (session_kind IN ('twitch','manual')),
+  user_id INTEGER NOT NULL REFERENCES twitch_users(id) ON DELETE CASCADE,
+  spawn_id INTEGER REFERENCES spawn_history(id) ON DELETE SET NULL,
+  pokemon_id INTEGER NOT NULL REFERENCES pokemon(id),
+  is_shiny INTEGER NOT NULL DEFAULT 0,
+  rarity TEXT,
+  base_points INTEGER NOT NULL,
+  rarity_bonus INTEGER NOT NULL,
+  shiny_bonus INTEGER NOT NULL,
+  points INTEGER NOT NULL,
+  rules_version INTEGER NOT NULL REFERENCES leaderboard_rule_versions(id),
+  source TEXT NOT NULL DEFAULT 'live' CHECK (source IN ('live','backfill')),
+  caught_at TEXT NOT NULL,
+  voided_at TEXT,
+  void_reason TEXT,
+  CHECK (points = base_points + rarity_bonus + shiny_bonus)
+);
+CREATE INDEX idx_lb_events_session ON leaderboard_events(session_id, user_id) WHERE voided_at IS NULL;
+CREATE INDEX idx_lb_events_user ON leaderboard_events(user_id, session_kind) WHERE voided_at IS NULL;
+CREATE INDEX idx_lb_events_kind ON leaderboard_events(session_kind, caught_at);
+-- Punti e dati della cattura non si modificano: solo l'annullamento è ammesso.
+CREATE TRIGGER trg_lb_events_immutable BEFORE UPDATE OF capture_attempt_id, session_id, session_kind, user_id,
+  pokemon_id, is_shiny, rarity, base_points, rarity_bonus, shiny_bonus, points, rules_version, caught_at ON leaderboard_events
+BEGIN SELECT RAISE(ABORT, 'evento della classifica immutabile'); END;
+
+-- Classifica per sessione e giocatore, calcolata dagli eventi (nessuna seconda copia dei dati).
+CREATE VIEW leaderboard_entries AS
+  SELECT session_id, session_kind, user_id, COUNT(*) AS captures, SUM(points) AS points,
+         SUM(is_shiny) AS shiny, COUNT(DISTINCT pokemon_id) AS species, MAX(caught_at) AS last_capture_at
+  FROM leaderboard_events WHERE voided_at IS NULL GROUP BY session_id, user_id;
+
+-- Catture già registrate prima di questa versione (dirette e sessioni manuali, mai
+-- DEMO): entrano nelle classifiche con le regole iniziali (versione 1), marcate
+-- "backfill". La rarità è quella salvata nello spawn al momento dell'incontro.
+INSERT INTO leaderboard_events (capture_attempt_id, user_pokemon_id, session_id, session_kind, user_id, spawn_id, pokemon_id,
+  is_shiny, rarity, base_points, rarity_bonus, shiny_bonus, points, rules_version, source, caught_at)
+SELECT a.id, a.user_pokemon_id, a.session_id, ss.kind, a.user_id, a.spawn_id, sp.pokemon_id, sp.is_shiny, sp.rarity, 10,
+  CASE sp.rarity WHEN 'uncommon' THEN 5 WHEN 'rare' THEN 15 WHEN 'epic' THEN 30 WHEN 'legendary' THEN 50 WHEN 'mythical' THEN 50 ELSE 0 END,
+  CASE WHEN sp.is_shiny = 1 THEN 50 ELSE 0 END,
+  10 + CASE sp.rarity WHEN 'uncommon' THEN 5 WHEN 'rare' THEN 15 WHEN 'epic' THEN 30 WHEN 'legendary' THEN 50 WHEN 'mythical' THEN 50 ELSE 0 END
+     + CASE WHEN sp.is_shiny = 1 THEN 50 ELSE 0 END,
+  1, 'backfill', COALESCE(a.redeemed_at, a.created_at)
+FROM capture_attempts a
+JOIN spawn_history sp ON sp.id = a.spawn_id
+JOIN stream_sessions ss ON ss.id = a.session_id
+WHERE a.outcome = 'caught' AND a.is_demo = 0 AND ss.is_demo = 0 AND ss.kind IN ('twitch','manual');
+
+-- Risultati congelati: copia definitiva della classifica (ordine, catture, punti,
+-- nomi al momento del congelamento). Una sola istantanea attiva per sessione; lo
+-- sblocco la marca "unlocked" (con motivazione) senza cancellarla né modificarla.
+CREATE TABLE leaderboard_snapshots (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES stream_sessions(id),
+  session_kind TEXT NOT NULL CHECK (session_kind IN ('twitch','manual')),
+  version INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','unlocked')),
+  data TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  rules_version INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by TEXT,
+  created_via TEXT NOT NULL DEFAULT 'dashboard' CHECK (created_via IN ('dashboard','chat')),
+  unlocked_at TEXT,
+  unlocked_by TEXT,
+  unlock_reason TEXT,
+  UNIQUE (session_id, version)
+);
+CREATE UNIQUE INDEX idx_lb_snapshots_one_active ON leaderboard_snapshots(session_id) WHERE status = 'active';
+CREATE TRIGGER trg_lb_snapshots_immutable BEFORE UPDATE OF session_id, session_kind, version, data, checksum, rules_version,
+  created_at, created_by, created_via ON leaderboard_snapshots
+BEGIN SELECT RAISE(ABORT, 'istantanea congelata immutabile'); END;
+CREATE TRIGGER trg_lb_snapshots_relock BEFORE UPDATE OF status ON leaderboard_snapshots WHEN OLD.status = 'unlocked'
+BEGIN SELECT RAISE(ABORT, 'istantanea già sbloccata: congela di nuovo per crearne una nuova'); END;
+CREATE TRIGGER trg_lb_snapshots_nodelete BEFORE DELETE ON leaderboard_snapshots
+BEGIN SELECT RAISE(ABORT, 'le istantanee congelate non si cancellano'); END;
+
+-- Impostazioni delle classifiche (comandi chat, stato della schermata nell'overlay).
+CREATE TABLE leaderboard_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- Riepilogo persistente di ogni sessione TWITCH o MANUAL, generato alla chiusura.
+CREATE TABLE stream_recaps (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL UNIQUE REFERENCES stream_sessions(id) ON DELETE CASCADE,
+  session_kind TEXT NOT NULL CHECK (session_kind IN ('twitch','manual')),
+  data TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'live' CHECK (source IN ('live','snapshot')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  generated_by TEXT
+);
+CREATE INDEX idx_stream_recaps_kind ON stream_recaps(session_kind, created_at);
+`,
+  },
 ];
 
 // Ultima versione di schema conosciuta da questo codice. Un database (o un

@@ -369,7 +369,10 @@ export class GameEngine extends EventEmitter {
 
   redemptionUpdated({ redemptionId, status }) {
     const r = handleRedemptionUpdate(this.db, this.cfg(), { redemptionId, status });
-    if (r.revoked) this.log.info(`Cattura revocata per riscossione annullata ${redemptionId}`);
+    if (r.revoked) {
+      this.log.info(`Cattura revocata per riscossione annullata ${redemptionId}`);
+      this.emit('revoked', { attemptId: r.attempt.id, sessionId: r.attempt.session_id });
+    }
     return r;
   }
 

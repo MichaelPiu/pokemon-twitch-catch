@@ -11,6 +11,7 @@ import {
   makeApp, cleanup, seedPokemon, tempDir, adminClient, FakeTwitch, FakeEventSub, waitFor, BROADCASTER_ID,
 } from './helpers.js';
 import { manifestName, parseBackupName } from '../src/backup/network.js';
+import { LATEST_SCHEMA } from '../src/database/migrations.js';
 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 
@@ -250,12 +251,12 @@ describe('Backup su cartella di rete', () => {
   test('13. ripristino fallito durante l\'aggiornamento: ritorno automatico ai dati precedenti', async () => {
     addTrainer('prima');
     const b = await nb().create('manual');
-    // Backup che supera i controlli ma fa fallire la migrazione (schema dichiarato 3 con colonne della v4).
+    // Backup che supera i controlli ma fa fallire la migrazione (schema dichiarato 3 con le colonne delle versioni successive).
     const p = join(dir(), b.file);
     const tmp = join(ctx.dir, 'broken.sqlite');
     writeFileSync(tmp, gunzipSync(readFileSync(p)));
     const d = new DatabaseSync(tmp);
-    d.exec('DELETE FROM schema_migrations WHERE id = 4;');
+    d.exec('DELETE FROM schema_migrations WHERE id >= 4;');
     d.close();
     const raw = readFileSync(tmp);
     const gz = gzipSync(raw);
@@ -269,7 +270,7 @@ describe('Backup su cartella di rete', () => {
     assert.equal(r.status, 500);
     assert.match(r.data.error, /ripristinati automaticamente/);
     assert.ok(app.db.get("SELECT 1 FROM twitch_users WHERE login = 'attuale'"), 'dati attuali intatti');
-    assert.equal(app.db.schemaVersion(), 4);
+    assert.equal(app.db.schemaVersion(), LATEST_SCHEMA);
     assert.equal(app.db.integrityCheck(), true);
     assert.ok(app.db.get("SELECT 1 FROM admin_audit WHERE action = 'restore_failed'"));
   });
@@ -295,7 +296,7 @@ describe('Backup su cartella di rete', () => {
     assert.match(JSON.stringify(v.data.checks), /versione più recente/);
     const r = await client.req('POST', `/api/admin/backups/network/${b.file}/restore`, { confirm: 'RIPRISTINA', sha256: m.archive.sha256 });
     assert.equal(r.status, 422);
-    assert.equal(app.db.schemaVersion(), 4);
+    assert.equal(app.db.schemaVersion(), LATEST_SCHEMA);
   });
 
   test('16. ripristino con sessione manuale attiva: la sessione viene chiusa in modo controllato', async () => {
@@ -326,7 +327,7 @@ describe('Backup su cartella di rete', () => {
     ({ app } = await makeApp({ dir: ctx.dir, configureTwitch: false, env: { BACKUP_TARGET_ROOT: root } }));
     assert.ok(app.db.get("SELECT 1 FROM twitch_users WHERE login = 'persistente'"));
     assert.equal(app.db.integrityCheck(), true);
-    assert.equal(app.db.schemaVersion(), 4);
+    assert.equal(app.db.schemaVersion(), LATEST_SCHEMA);
   });
 
   test('sicurezza: path traversal, sottocartelle non valide e collegamenti simbolici fuori dalla cartella', async () => {
