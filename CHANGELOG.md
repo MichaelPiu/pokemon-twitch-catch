@@ -2,7 +2,7 @@
 
 ## 1.0.0 — prima versione stabile
 
-Pubblicata il 10 novembre 2026: tag `v1.0.0`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0` (`linux/amd64`, `linux/arm64`), store Umbrel aggiornato.
+Pubblicata il 10 novembre 2026: tag `v1.0.0`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0@sha256:6f03f10cf2bcea6558d2baa7ea0d24068cc865eb8c8c1684e3a61d5c72808055` (`linux/amd64`, `linux/arm64`), store Umbrel aggiornato (commit dello store `004e5ff`).
 
 ### Aggiornamento dalla 1.0.0-rc.3
 - Il database passa dallo schema v3 al v5 (migrazioni 4 e 5). Prima della migrazione l'app crea da sola il backup `…-pre-migration.sqlite.gz`. Dati, catture, giocatori, temi, impostazioni e credenziali Twitch restano invariati; le catture esistenti entrano nelle classifiche come *storiche*.

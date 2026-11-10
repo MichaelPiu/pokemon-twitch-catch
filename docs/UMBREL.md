@@ -1,25 +1,24 @@
 # Live Catch su Umbrel OS — installazione, pubblicazione e verifiche
 
-## Stato delle verifiche (1.0.0-rc.3, Release Candidate pubblicata il 10 novembre 2026)
+## Stato delle verifiche (1.0.0, pubblicata il 10 novembre 2026)
 
 | Verifica | Stato | Dove |
 |---|---|---|
-| Test automatici (logica, API, sicurezza, migrazioni, backup e ripristino, Channel Points ed errori temporanei con Twitch simulato) | **Verificata**: 180/180 in locale su Node 24.22.2 e Node 26.13.0, e nella CI di GitHub (Node 24) per la PR, per `main` e per il tag `v1.0.0-rc.3` | `npm test`, job CI *Test automatici* |
-| Rollback rc.3 → rc.2 e ritorno, backup tra versioni di Node | Verificata **in locale** con script (nessun dato perso), non su Umbrel | README → *Tornare a una versione precedente* |
-| Dashboard e Overlay Designer nel browser | Verificata con test automatizzati nel Chromium del browser integrato (non OBS) | — |
-| Avvio reale del container amd64 e arm64: healthcheck, `/health`, pagine e API admin protette, login e cambio password, CSRF/Origin, backup, UID 1000 e processo non privilegiato, persistenza dopo il riavvio, password assenti dai log, arresto pulito, volume non scrivibile | **Verificata nella CI del tag `v1.0.0-rc.3`** (run 42776475968, runner Ubuntu; arm64 in emulazione QEMU). È un test in container, **non** un'installazione su Umbrel | job CI *Avvio reale del container*, `scripts/container-smoke.sh` |
-| Linter ufficiale di Umbrel sul pacchetto | **Verificata per la rc.3**: nessun errore nella CI di sviluppo (unico avviso atteso: l'immagine senza digest, che è fissato nello store) e nessun problema nello store con `--check-images` | job CI *Linter ufficiale Umbrel*, Action dello store |
-| 1. Disponibilità pubblica dell'immagine | **Verificata il 10 novembre 2026** senza credenziali: pacchetto GHCR **pubblico** (impostazione separata dal repository, anch'esso pubblico), token anonimo di pull HTTP 200 | `scripts/check-ghcr-anonymous.mjs` |
-| 2. Manifest e digest della rc.3 | **Verificati**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3@sha256:5b1fb376086df52b883cac684ae939c0451f1a92695c8599a8c1cc79b5dbb114`, indice multi-arch HTTP 200 con `linux/amd64` e `linux/arm64`. Lo stesso digest compare nel log della CI, nel controllo anonimo bloccante del job (superato) e nel manifest dello store. Da un Mac, senza credenziali, sono stati scaricati per intero tutti gli 11 layer di ciascuna architettura con sha256 verificati (equivale ai dati di un `docker pull`, senza l'estrazione in Docker) | job CI *Pubblicazione*, `scripts/check-ghcr-anonymous.mjs` |
-| 3. Verifica automatica dello store | **Superata** per la rc.3: Action dello store (run 42776917007) con linter ufficiale e `--check-images` senza problemi, icona HTTP 200; lo stesso linter, eseguito anche in locale prima della pubblicazione, non ha trovato problemi | Action dello store |
-| Repository dello store | **Pubblicato** con la rc.3 (commit dello store `f317726`): clone anonimo riuscito, `umbrel-app.yml` (versione `1.0.0-rc.3`) e `docker-compose.yml` (immagine fissata per tag e digest) leggibili senza credenziali | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
-| Controllo anonimo bloccante nella CI | **Eseguito e superato** in GitHub Actions sul tag `main` (run 42776071957) e sul tag `1.0.0-rc.3` (run 42776475968) | job CI *Pubblicazione*, `test/ghcr-anonymous-check.test.js` |
-| 4. Installazione reale su Umbrel (rc.3) | **Non verificata**: nessuna versione è mai stata installata su un vero Umbrel da questo store. Serve il tuo dispositivo, vedi [Collaudo](#collaudo-consigliato-sul-tuo-umbrel) | — |
-| Aggiornamento rc.2 → rc.3 su un vero Umbrel (migrazione allo schema v3, backup `pre-migration`, temi) | **Non verificato** (serve il tuo server); provato solo in locale, vedi sopra | — |
-| 5. Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi) | **Non verificata** (serve il tuo consenso e il tuo canale) | — |
-| 5. Overlay dentro OBS | **Non verificata** | — |
+| Test automatici (logica, API, sicurezza, migrazioni, backup e ripristino, Channel Points, classifiche, audio, Twitch simulato) | **Verificata**: 266/266 in locale su Node 24.22.2 e Node 26.13.0, e nella CI di GitHub (Node 24) per `main` e per il tag `v1.0.0` (run 42875437029) | `npm test`, job CI *Test automatici* |
+| Aggiornamento rc.3 → 1.0.0 (schema v3 → v5) | Verificato **in locale** con un database creato dal codice della rc.3 (catture via Twitch simulato, credenziali cifrate, impostazioni personalizzate): backup `pre-migration` identico all'originale, nessun dato, cattura o impostazione persi, credenziali leggibili, pagine HTTP 200, su Node 24 e 26. Non su Umbrel | — |
+| Backup e ripristino con `secret.key` diversa | Verificato **in locale**: backup locale e di rete della 1.0.0 ripristinati su un'installazione nuova, HTTP 200, Twitch scollegato con avviso, credenziali cifrate intatte, catture e impostazioni conservate, modalità manuale funzionante | `test/credentials-key.test.js` |
+| Dashboard, Overlay Designer e audio dell'overlay nel browser | Verificata nel Chromium del browser integrato (non OBS) | — |
+| Avvio reale del container amd64 e arm64 (healthcheck, `/health`, API protette, login, CSRF/Origin, backup, UID 1000, persistenza, arresto pulito) | **Verificata nella CI del tag `v1.0.0`** (run 42875437029; arm64 in emulazione QEMU). È un test in container, **non** un'installazione su Umbrel | job CI *Avvio reale del container* |
+| Linter ufficiale di Umbrel | **Nessun errore** in locale e nella CI (unico avviso atteso: immagine senza digest nel pacchetto di sviluppo); nessun problema nello store con `--check-images` | job CI, Action dello store |
+| 1. Disponibilità pubblica dell'immagine | **Verificata il 10 novembre 2026** senza credenziali: token anonimo di pull HTTP 200 | `scripts/check-ghcr-anonymous.mjs` |
+| 2. Manifest e digest della 1.0.0 | **Verificati**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0@sha256:6f03f10cf2bcea6558d2baa7ea0d24068cc865eb8c8c1684e3a61d5c72808055`; `linux/amd64` `sha256:56d3bb00843781200e5f551cab2cf804a4d6ed0f3821ee4294be11c6217ae9ac`, `linux/arm64` `sha256:487eb91ff40b9eae743e158488aa98c9951857ae69fa6c34a8a3522289361c32`. Stesso digest nel log della CI, nel controllo anonimo bloccante e nello store. Da un Mac, senza credenziali, scaricati tutti gli 11 layer di ciascuna architettura con sha256 verificati; elencati i file: solo `/app/package.json`, `src`, `public`, `scripts` e le dipendenze, `/data` vuota, nessun file audio, zip, database, chiave o test | job CI *Pubblicazione* |
+| 3. Verifica automatica dello store | **Superata**: Action dello store (run 42876442200), linter ufficiale con `--check-images`, icona HTTP 200 | Action dello store |
+| Repository dello store | **Pubblicato** con la 1.0.0 (commit dello store `004e5ff`): clone anonimo riuscito, versione `1.0.0`, immagine fissata per tag e digest | <https://github.com/MichaelPiu/piu-umbrel-app-store> |
+| 4. Installazione e aggiornamento su un vero Umbrel | **Non verificati**: servono il tuo dispositivo e la procedura [Aggiornare l'app esistente alla 1.0.0](#aggiornare-lapp-esistente-alla-100-dati-conservati) | — |
+| 5. Twitch reale (OAuth, EventSub, chat, ricompense, rimborsi, `!leaderboard`) | **Non verificata** | — |
+| 5. Overlay e audio dentro OBS | **Non verificati** | — |
 
-Le righe numerate tengono separati cinque livelli che non vanno confusi: (1) l'immagine è pubblica, (2) manifest e digest sono corretti, (3) lo store supera la verifica automatica, (4) l'app si installa davvero su un Umbrel, (5) funziona con Twitch e OBS reali. Per la rc.3 sono verificati i primi tre; il quarto e il quinto richiedono il tuo Umbrel e il tuo canale.
+Le righe numerate tengono separati cinque livelli: (1) l'immagine è pubblica, (2) manifest e digest sono corretti, (3) lo store supera la verifica automatica, (4) l'app si installa e si aggiorna davvero su un Umbrel, (5) funziona con Twitch e OBS reali. Per la 1.0.0 sono verificati i primi tre.
 
 ## Come funziona il proxy di Umbrel (verificato sul codice sorgente)
 
@@ -39,7 +38,7 @@ Rischio residuo noto: un'app installata con `network_mode: host` sullo stesso Um
 
 ## Installazione (Metodo A, App Store)
 
-Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10 novembre 2026** per la versione oggi nello store (1.0.0-rc.3): pacchetto pubblico, manifest e architetture amd64/arm64 scaricabili senza credenziali, Action dello store superata. L'installazione vera e propria su un Umbrel **non è ancora stata provata**.
+Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10 novembre 2026** per la versione oggi nello store (1.0.0): pacchetto pubblico, manifest e architetture amd64/arm64 scaricabili senza credenziali, Action dello store superata. L'installazione vera e propria su un Umbrel **non è ancora stata provata**.
 
 1. Umbrel → **App Store** → **⋯** → **Community App Stores** → `https://github.com/MichaelPiu/piu-umbrel-app-store` → **Add**.
 2. Store **Piu** → **Live Catch** → **Install**.
@@ -47,6 +46,29 @@ Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10
 4. Consigliato: [hostname dedicato](#hostname-dedicato-passo-per-passo).
 
 Dati: `~/umbrel/app-data/piu-live-catch/data` (database, immagini, backup, log, `secret.key`), inclusi nei backup di Umbrel.
+
+## Aggiornare l'app esistente alla 1.0.0 (dati conservati)
+
+Vale per chi ha già installato Live Catch dallo store (rc.1, rc.2 o rc.3). I dati restano in `~/umbrel/app-data/piu-live-catch/data` e **non** vengono toccati dall'aggiornamento: l'app nuova li riapre e migra il database allo schema v5.
+
+> ⚠️ **Non disinstallare** l'app per aggiornarla: su Umbrel la disinstallazione cancella anche `app-data`, quindi database, `secret.key` e backup locali.
+
+1. **Prima dell'aggiornamento**, dalla dashboard: *Backup & Sistema → Crea backup ora*, poi scarica il file sul PC. Se vuoi una copia completa (anche immagini, log e `secret.key`), via SSH:
+   ```bash
+   sudo tar -czf ~/livecatch-prima-della-1.0.0.tar.gz -C ~/umbrel/app-data/piu-live-catch data
+   ```
+2. Se c'è una diretta in corso, aspetta che finisca (l'aggiornamento riavvia l'app).
+3. Umbrel → **App Store** → store **Piu** → **Live Catch**: compare **Update** con la versione `1.0.0` (Umbrel rilegge gli store della community periodicamente; se non compare ancora, attendi qualche minuto e riapri l'App Store). Premi **Update**.
+4. Al primo avvio la 1.0.0 crea il backup `…-pre-migration.sqlite.gz` e migra il database. Verifica:
+   - `http://umbrel.local:8788/health` → `"status":"ok"`;
+   - *Backup & Sistema*: versione **1.0.0**, **schema DB v5**, backup `pre-migration` nell'elenco;
+   - Pokédex, giocatori, statistiche e impostazioni come prima; le catture esistenti compaiono in *Classifiche → Hall of Fame* come *storiche*;
+   - Twitch resta collegato (stessa `secret.key`): *Twitch → Testa connessione*.
+5. **OBS**: la sorgente resta `http://IP-UMBREL:8788/overlay`. Nelle proprietà della sorgente premi **Aggiorna la cache della pagina corrente** (carica il codice nuovo) e attiva **Controlla l'audio tramite OBS**. Non aggiungere altre sorgenti.
+6. **Audio** (facoltativo): copia i tuoi file in `~/umbrel/app-data/piu-live-catch/data/audio/` (vedi [Audio OBS](#audio-obs-dalla-100)), poi *Audio OBS → Aggiorna* e *Prova suono spawn*.
+7. **Cartella di rete** (facoltativo, umbrelOS 2.x): impostazioni dell'app in Umbrel → *Cartella dei backup*, poi *Backup & Sistema → Backup di rete → Verifica connessione*.
+
+Se qualcosa non va: *Backup & Sistema → Backup* → ripristina il file `pre-migration` (torna ai dati di prima dell'aggiornamento) e segnala il problema; per tornare alla rc.3 vedi [Tornare a una versione precedente](#tornare-a-una-versione-precedente).
 
 ## Cartella di rete per i backup (dalla 1.0.0)
 

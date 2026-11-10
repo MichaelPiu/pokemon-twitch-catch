@@ -130,11 +130,11 @@ Umbrel installa app di terze parti tramite i **Community App Store**: un reposit
 
 Prerequisito: l'immagine Docker su GitHub Container Registry deve essere **pubblica**, perché Umbrel la scarica senza credenziali (lo controlla l'Action dello store a ogni modifica).
 
-> **Stato attuale (10 novembre 2026): pubblicata la Release Candidate 1.0.0-rc.3.**
+> **Stato attuale (10 novembre 2026): pubblicata la versione stabile 1.0.0.**
 > - **immagine pubblica**: il repository GitHub e il pacchetto GHCR sono pubblici (sono due impostazioni separate); il token anonimo di pull risponde HTTP 200;
-> - **manifest e digest**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3@sha256:5b1fb376086df52b883cac684ae939c0451f1a92695c8599a8c1cc79b5dbb114`, indice multi-arch con `linux/amd64` e `linux/arm64`; stesso digest nel log della CI, nel controllo anonimo bloccante e nello store. Tutti i layer di entrambe le architetture sono stati scaricati senza credenziali e verificati;
-> - **verifica dello store**: lo store contiene la rc.3 e la sua Action (linter ufficiale con `--check-images`) è superata;
-> - **non ancora verificati**: l'installazione reale su un Umbrel e l'uso con Twitch e OBS reali.
+> - **manifest e digest**: `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0@sha256:6f03f10cf2bcea6558d2baa7ea0d24068cc865eb8c8c1684e3a61d5c72808055`, indice multi-arch con `linux/amd64` e `linux/arm64`; stesso digest nel log della CI, nel controllo anonimo bloccante e nello store. Tutti gli 11 layer di entrambe le architetture sono stati scaricati senza credenziali e verificati; l'immagine contiene solo l'applicazione (nessun file audio, database o chiave);
+> - **verifica dello store**: lo store contiene la 1.0.0 e la sua Action (linter ufficiale con `--check-images`) è superata;
+> - **non ancora verificati**: l'installazione e l'aggiornamento su un vero Umbrel e l'uso con Twitch e OBS reali (overlay e audio).
 
 Installazione:
 1. Apri l'interfaccia di Umbrel (`http://umbrel.local`).
@@ -949,7 +949,7 @@ Alcuni passaggi richiedono i tuoi account o una tua decisione e non sono stati e
 
 1. **Immagine Docker scaricabile senza credenziali** (fatto): Umbrel scarica l'immagine GHCR `pokemon-twitch-catch` senza autenticazione, quindi il pacchetto deve essere **pubblico** (GitHub → *Packages* → `pokemon-twitch-catch` → *Package settings* → *Change visibility*).
    - Il **repository GitHub** di sviluppo è pubblico.
-   - Il **pacchetto GHCR** è pubblico: il 10 novembre 2026 token anonimo, manifest della rc.3 e immagini amd64/arm64 hanno risposto HTTP 200 senza credenziali, e l'Action dello store è stata superata.
+   - Il **pacchetto GHCR** è pubblico: il 10 novembre 2026 token anonimo, manifest della 1.0.0 e immagini amd64/arm64 hanno risposto HTTP 200 senza credenziali, e l'Action dello store è stata superata.
    - Resta da provare l'installazione vera su Umbrel (punto 5).
 2. **Twitch**: creare l'applicazione su dev.twitch.tv e autorizzare l'account del canale (e l'eventuale bot) con il codice di attivazione.
 3. **Affiliate/Partner**: necessario per i punti canale.
