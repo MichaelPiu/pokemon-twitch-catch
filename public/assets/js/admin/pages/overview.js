@@ -66,9 +66,11 @@ export async function overview({ el }) {
         ' e aggiungi l\'overlay in OBS (', h('a', { href: '#/overlay' }, 'Overlay'), ').') : null,
       d.pokemonCount.n === 0 ? h('div', { class: 'notice err', style: { marginBottom: '16px' } },
         'Nessun Pokémon nel database: vai su ', h('a', { href: '#/pokemon' }, 'Gestione Pokémon'), ' e avvia l\'importazione da PokéAPI.') : null,
-      d.isDemo ? h('div', { class: 'notice', style: { marginBottom: '16px' } }, icon('flask', { size: 16 }), ' Modalità DEMO attiva: i dati mostrati sotto sono di prova e non entrano nelle statistiche reali.') : null);
+      d.isDemo ? h('div', { class: 'notice', style: { marginBottom: '16px' } }, icon('flask', { size: 16 }), ' Modalità DEMO attiva: i dati mostrati sotto sono di prova e non entrano nelle statistiche reali.') : null,
+      eng.mode === 'manual' ? h('div', { class: 'manual-banner' }, h('span', { class: 'manual-dot' }), h('strong', {}, 'Sessione manuale in corso'),
+        h('span', { class: 'muted' }, ' — gioco senza diretta, dati reali marcati MANUAL. '), h('a', { href: '#/game' }, 'Controllo gioco')) : null);
 
-    const engineVal = eng.running ? (eng.mode === 'demo' ? ['DEMO', '#38bdf8'] : ['Attivo', 'var(--ok)']) : eng.suspended ? ['Sospeso', 'var(--warn)'] : ['Fermo', 'var(--muted)'];
+    const engineVal = eng.running ? (eng.mode === 'demo' ? ['DEMO', '#38bdf8'] : eng.mode === 'manual' ? ['Manuale', 'var(--ok)'] : ['Attivo', 'var(--ok)']) : eng.suspended ? ['Sospeso', 'var(--warn)'] : ['Fermo', 'var(--muted)'];
     mount(kpis,
       kpi('twitch', 'Stato Twitch', h('span', { style: { color: stColor, display: 'inline-flex', alignItems: 'center', gap: '10px' } }, stLabel, st === 'LIVE' ? h('span', { class: 'dot live' }) : null),
         { color: st === 'LIVE' ? 'var(--ok)' : '#c9cbe0', live: st === 'LIVE' }),
@@ -117,7 +119,7 @@ export async function overview({ el }) {
     const dur = h('span', { class: 'v' }, '—');
     if (s) ticking.push(() => { dur.textContent = hms(((s.ended_at ? Date.parse(s.ended_at) : Date.now()) - Date.parse(s.started_at)) / 1000); });
     mount(livePanel,
-      h('div', { class: 'panel-head' }, h('h2', {}, icon('logo', { size: 22 }), d.isDemo ? 'Sessione DEMO' : 'Diretta corrente')),
+      h('div', { class: 'panel-head' }, h('h2', {}, icon('logo', { size: 22 }), d.isDemo ? 'Sessione DEMO' : s?.kind === 'manual' ? 'Sessione manuale' : 'Diretta corrente')),
       s ? h('div', { class: 'kv-list' },
         h('div', {}, icon('calendar', { size: 20 }), 'Inizio', h('span', { class: 'v' }, dayTime(s.started_at))),
         h('div', {}, icon('hourglass', { size: 20 }), 'Durata', dur),

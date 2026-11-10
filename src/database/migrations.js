@@ -290,6 +290,55 @@ CREATE TABLE overlay_themes (
 );
 `,
   },
+  {
+    id: 4,
+    name: 'sessioni_manuali_origine_catture_audit',
+    sql: `
+-- Tipo di sessione: diretta Twitch, sessione manuale avviata dalla dashboard
+-- (dati reali, senza Twitch) o DEMO (dati di prova separati).
+-- Il vincolo "una sola sessione aperta per is_demo" resta: una sessione
+-- manuale e una diretta Twitch non possono essere aperte insieme.
+ALTER TABLE stream_sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'twitch' CHECK (kind IN ('twitch','manual','demo'));
+UPDATE stream_sessions SET kind = 'demo' WHERE is_demo = 1;
+ALTER TABLE stream_sessions ADD COLUMN errors INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE stream_sessions ADD COLUMN last_error TEXT;
+CREATE INDEX idx_stream_sessions_kind ON stream_sessions(kind, started_at);
+
+-- Origine di ogni esemplare del Pokédex: cattura durante una diretta Twitch,
+-- cattura durante una sessione manuale, registrazione dell'amministratore,
+-- importazione JSON o DEMO. Le righe esistenti vengono classificate dai campi
+-- già presenti (nessun dato viene perso o modificato).
+ALTER TABLE user_pokemon ADD COLUMN origin TEXT NOT NULL DEFAULT 'twitch' CHECK (origin IN ('twitch','manual','admin','import','demo'));
+UPDATE user_pokemon SET origin = CASE
+  WHEN is_demo = 1 THEN 'demo'
+  WHEN source = 'admin' THEN 'admin'
+  WHEN source = 'import' THEN 'import'
+  ELSE 'twitch' END;
+ALTER TABLE user_pokemon ADD COLUMN note TEXT;
+ALTER TABLE user_pokemon ADD COLUMN rev INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_pokemon ADD COLUMN updated_at TEXT;
+ALTER TABLE user_pokemon ADD COLUMN updated_by TEXT;
+CREATE INDEX idx_user_pokemon_origin ON user_pokemon(origin);
+
+-- Giocatori locali (sessioni manuali senza Twitch): distinti dagli spettatori Twitch.
+ALTER TABLE twitch_users ADD COLUMN origin TEXT NOT NULL DEFAULT 'twitch' CHECK (origin IN ('twitch','demo','local'));
+UPDATE twitch_users SET origin = 'demo' WHERE is_demo = 1;
+
+-- Registro delle operazioni amministrative (Pokédex, backup, ripristini, sessioni
+-- manuali): chi, quando, cosa. Mai segreti o token.
+CREATE TABLE admin_audit (
+  id INTEGER PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  admin TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  detail TEXT
+);
+CREATE INDEX idx_admin_audit_created ON admin_audit(created_at);
+CREATE INDEX idx_admin_audit_target ON admin_audit(target_type, target_id);
+`,
+  },
 ];
 
 // Ultima versione di schema conosciuta da questo codice. Un database (o un

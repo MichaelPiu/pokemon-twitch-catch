@@ -24,10 +24,15 @@ import { RewardsService } from './twitch/rewards.js';
 import { TwitchMonitor } from './twitch/monitor.js';
 import { PokemonImporter } from './pokemon_data/importer.js';
 import { BackupService, preMigrationBackup } from './backup/backup.js';
+import { NetworkBackupService } from './backup/network.js';
+import { audit } from './audit.js';
 import { registerAuthRoutes } from './api/auth.js';
 import { registerAdminRoutes } from './api/admin.js';
 import { registerPublicRoutes } from './api/public.js';
 import { registerOverlayRoutes } from './api/overlay.js';
+import { registerGameRoutes } from './api/game.js';
+import { registerBackupRoutes } from './api/backups.js';
+import { registerPokedexRoutes } from './api/pokedex.js';
 import { ThemeStore } from './overlay/themes.js';
 import { OverlaySimulator } from './overlay/simulator.js';
 
@@ -66,8 +71,10 @@ export class App {
     const isNew = !this.db.get("SELECT name FROM sqlite_master WHERE name = 'schema_migrations'");
     this.backups = null;
     // Prima di aggiornare lo schema di un database esistente ne salva una copia.
+    this.preUpdate = null;
     if (!isNew && this.db.pendingMigrations().length) {
       const f = preMigrationBackup(this.db, c.backupsDir, this.db.schemaVersion());
+      this.preUpdate = { file: join(c.backupsDir, f), fromSchema: this.db.schemaVersion() };
       this.log.info(`Backup di sicurezza prima dell'aggiornamento dello schema: ${f}`);
     }
     const applied = this.db.migrate();
@@ -127,6 +134,8 @@ export class App {
     this.importer = new PokemonImporter({ db: this.db, config: c, log: this.logger.child('pokeapi'), fetchImpl: this.fetchImpl });
     this.importer.on('progress', (p) => this.hub.admin('import', p));
     this.backups = new BackupService({ db: this.db, config: c, adminSettings: this.adminSettings, log: this.logger.child('backup') });
+    this.networkBackups = new NetworkBackupService({ db: () => this.db, config: c, adminSettings: this.adminSettings, log: this.logger.child('backup-rete'), version: c.version, timers: this.timers });
+    this.scheduleUpdateBackup();
 
     this.simulator = new OverlaySimulator({
       db: this.db, hub: this.hub, engine: this.engine, sm: this.sm, log: this.logger.child('overlay'), timers: this.timers,
@@ -151,8 +160,11 @@ export class App {
     registerAdminRoutes(this);
     registerPublicRoutes(this);
     registerOverlayRoutes(this);
+    registerGameRoutes(this);
+    registerBackupRoutes(this);
+    registerPokedexRoutes(this);
 
-    if (this.timers) this.backups.startScheduler();
+    if (this.timers) { this.backups.startScheduler(); this.networkBackups.startScheduler(); }
     this.pruneTimer = setInterval(() => this.prune(), 6 * 3600 * 1000);
     this.pruneTimer.unref?.();
     return this;
@@ -354,29 +366,110 @@ export class App {
     await this.monitor.start();
   }
 
-  // Ripristino di un backup: arresta i servizi, sostituisce il DB, riparte.
-  async restore(name) {
-    if ([STATES.LIVE, STATES.PAUSED].includes(this.sm.state)) throw new HttpError(409, 'Non è possibile ripristinare un backup durante una diretta');
-    if (this.engine.mode === 'demo') this.engine.stopDemo('restore');
-    const { staged, safety } = this.backups.restoreFile(name);
-    this.monitor.stop();
-    this.engine.shutdown();
-    this.db.close();
-    try {
-      this.backups.swapInStaged(staged);
-    } finally {
-      this.db.open();
-      this.db.migrate();
-      this.seed();
-      this.themes.init();
+  // Aggiornamento dell'app (nuova versione o nuove migrazioni): se richiesto, copia
+  // anche sulla cartella di rete il backup fatto prima dell'aggiornamento. Non blocca
+  // l'avvio: la copia locale "pre-migration" esiste comunque.
+  scheduleUpdateBackup() {
+    const prev = this.adminSettings.get('lastAppVersion');
+    const version = this.config.version;
+    this.adminSettings.set('lastAppVersion', version);
+    const conf = this.networkBackups.conf();
+    if (!conf.enabled || !conf.beforeUpdate) return;
+    if (!this.preUpdate && (!prev || prev === version)) return;
+    const note = prev ? `prima dell'aggiornamento da v${prev}` : 'prima dell\'aggiornamento dello schema';
+    const job = this.preUpdate
+      ? this.networkBackups.copyLocal(this.preUpdate.file, 'pre-update', prev ? `${note} v${prev}` : note)
+      : this.networkBackups.create('pre-update', { note });
+    this.pendingUpdateBackup = job.then(
+      (r) => this.log.info(`Backup prima dell'aggiornamento salvato sulla cartella di rete: ${r.file}`),
+      (e) => this.log.warn('Backup prima dell\'aggiornamento non salvato sulla cartella di rete', { message: e.message }),
+    );
+  }
+
+  // Ripristino di un backup locale (cartella backups/).
+  async restore(name, { admin = null, keepSessionOf = null } = {}) {
+    const raw = this.backups.readVerified(name);
+    return this.restoreRaw(raw, { label: name, source: 'local', admin, keepSessionOf });
+  }
+
+  // Ripristino da un database già verificato (backup locale o di rete).
+  // 1. rifiuta durante una diretta; ferma in modo controllato sessione manuale/DEMO;
+  // 2. backup di sicurezza dello stato attuale (locale, non dipende dalla rete);
+  // 3. ferma monitor e motore, chiude il DB (checkpoint del WAL), sostituisce il file;
+  // 4. riapre, migra e verifica; in caso di errore torna automaticamente allo stato
+  //    precedente (copia "before-restore", poi il backup di sicurezza);
+  // 5. conserva la sessione dell'amministratore e le impostazioni della cartella di rete.
+  async restoreRaw(raw, { label, source = 'local', admin = null, keepSessionOf = null } = {}) {
+    if ([STATES.LIVE, STATES.PAUSED].includes(this.sm.state) || this.engine.mode === 'live') {
+      throw new HttpError(409, 'Non è possibile ripristinare un backup durante una diretta Twitch: attendi la fine della diretta');
     }
+    if (this.restoring) throw new HttpError(409, 'Un ripristino è già in corso');
+    this.restoring = true;
+    try {
+      this.backups.verifySqlite(raw);
+      const stopped = [];
+      if (this.engine.mode === 'manual') { stopped.push(this.engine.stopManual('restore', { admin })?.id); }
+      if (this.engine.mode === 'demo') { this.engine.stopDemo('restore'); stopped.push('demo'); }
+      const safety = this.backups.create('pre-restore', `prima del ripristino di ${label}`);
+      // Dati da conservare attraverso il ripristino.
+      const keep = {
+        networkBackup: this.adminSettings.get('networkBackup'),
+        networkBackupState: this.adminSettings.get('networkBackupState'),
+        lastAppVersion: this.adminSettings.get('lastAppVersion'),
+        session: keepSessionOf ? this.db.get(
+          `SELECT s.token_hash, s.csrf_token, s.created_at, s.expires_at, s.ip, s.user_agent, s.last_seen_at, u.username
+           FROM admin_sessions s JOIN admin_users u ON u.id = s.admin_user_id WHERE s.id = ?`, keepSessionOf) : null,
+      };
+      const staged = this.backups.stage(raw);
+      this.monitor.stop();
+      this.engine.shutdown();
+      this.db.close();
+      let rolledBack = null;
+      try {
+        this.backups.swapInStaged(staged);
+        this.db.open();
+        if (!this.db.integrityCheck()) throw new Error('il database ripristinato non supera il controllo di integrità');
+        this.db.migrate();
+        this.seed();
+        this.themes.init();
+      } catch (e) {
+        this.log.error('Ripristino non riuscito: ritorno allo stato precedente', { message: e.message });
+        try { this.db.close(); } catch { /* già chiuso */ }
+        rolledBack = this.backups.rollbackSwap(safety.filename);
+        this.db.open();
+        this.db.migrate();
+        this.seed();
+        this.themes.init();
+        this.afterDbSwap();
+        audit(this.db, { admin, action: 'restore_failed', targetType: 'backup', targetId: label, detail: { source, error: e.message, rolledBackFrom: rolledBack } }, this.log);
+        throw new HttpError(500, `Ripristino non riuscito (${e.message}). I dati precedenti sono stati ripristinati automaticamente (${rolledBack}).`);
+      }
+      for (const k of ['networkBackup', 'networkBackupState', 'lastAppVersion']) if (keep[k] !== undefined) this.adminSettings.set(k, keep[k]);
+      if (keep.session) {
+        const u = this.db.get('SELECT id FROM admin_users WHERE username = ?', keep.session.username);
+        if (u) {
+          this.db.run(`INSERT OR IGNORE INTO admin_sessions (token_hash, csrf_token, admin_user_id, created_at, expires_at, ip, user_agent, last_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, keep.session.token_hash, keep.session.csrf_token, u.id, keep.session.created_at,
+          keep.session.expires_at, keep.session.ip, keep.session.user_agent, keep.session.last_seen_at);
+        }
+      }
+      this.afterDbSwap();
+      audit(this.db, { admin, action: 'restore', targetType: 'backup', targetId: label, detail: { source, safetyBackup: safety.filename, stoppedSessions: stopped, schema: this.db.schemaVersion() } }, this.log);
+      this.log.info(`Backup ripristinato: ${label}`, { source, safety: safety.filename });
+      return { restored: label, source, safetyBackup: safety.filename, schemaVersion: this.db.schemaVersion(), integrity: this.db.integrityCheck(), stoppedSessions: stopped };
+    } finally {
+      this.restoring = false;
+    }
+  }
+
+  afterDbSwap() {
     this.hub.overlay('settings', this.themes.effective());
     this.engine.session = null;
     this.engine.mode = null;
-    this.engine.recoverAfterRestart();
-    this.log.info(`Backup ripristinato: ${name}`);
+    this.engine.suspended = false;
+    this.engine.recoverAfterRestart('restore');
+    this.engine.emitStatus();
     this.monitor.start().catch(() => {});
-    return { restored: name, safetyBackup: safety };
   }
 
   async close() {
@@ -386,6 +479,7 @@ export class App {
     this.engine?.shutdown();
     this.simulator?.stop();
     this.backups?.stop();
+    this.networkBackups?.stop();
     this.hub?.close();
     if (this.server) await new Promise((r) => { this.server.closeAllConnections?.(); this.server.close(() => r()); });
     this.db?.close();

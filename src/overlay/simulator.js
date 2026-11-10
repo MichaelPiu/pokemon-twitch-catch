@@ -184,6 +184,7 @@ export class OverlaySimulator {
     if (state === STATES.LIVE || state === STATES.PAUSED) return `diretta ${state}`;
     if (this.engine?.mode === 'live') return 'diretta in corso';
     if (this.engine?.mode === 'demo') return 'modalità DEMO attiva';
+    if (this.engine?.mode === 'manual') return 'sessione manuale attiva';
     // In ERROR o CONNECTING il gioco è fermo, ma il canale può essere davvero in
     // onda (es. EventSub non ancora collegato): l'ultima informazione nota da
     // Twitch dice che la diretta è attiva, quindi niente simulazioni in onda.

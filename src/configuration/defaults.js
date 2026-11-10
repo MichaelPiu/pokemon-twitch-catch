@@ -61,6 +61,8 @@ export const GAME_DEFAULTS = {
 export const ADMIN_DEFAULTS = {
   publicPages: { landing: true, pokedex: true, leaderboard: true },
   backup: { autoEnabled: true, hour: 4, keep: 14 },
+  // Backup sulla cartella di rete (vedi src/backup/network.js, NETWORK_DEFAULTS).
+  networkBackup: { enabled: false, subdir: 'livecatch', frequency: 'daily', hour: 3, keep: 14, beforeUpdate: true },
   twitch: { channelLogin: '', useSeparateBot: false },
   demo: { enabled: false },
   security: {

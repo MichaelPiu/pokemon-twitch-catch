@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import { makeApp, cleanup, seedPokemon, waitFor, tempDir } from './helpers.js';
+import { makeApp, cleanup, seedPokemon, waitFor, tempDir, legacyDatabase } from './helpers.js';
+import { LATEST_SCHEMA } from '../src/database/migrations.js';
 import { startServer, overlaySocket, dbFingerprint } from './overlay-helpers.js';
 import {
   PRESETS, LAYOUTS, sanitizeConfig, parseImport, exportTheme, effectiveSettings, defaultConfig, THEME_FORMAT,
@@ -344,20 +345,17 @@ describe('Overlay Themes: persistenza e aggiornamento da versioni precedenti', (
 
   test('database 1.0.0-rc.2 (schema v2) con impostazioni overlay personalizzate: migrazione al tema Classico senza cambiare l\'aspetto', async () => {
     const dir = tempDir();
-    let { app } = await makeApp({ dir, configureTwitch: false });
-    await app.close();
-    // Riporta il database allo stato della rc.2: niente tabella dei temi, impostazioni nel vecchio formato.
-    const db = new DatabaseSync(join(dir, 'db', 'livecatch.sqlite'));
-    db.exec('DROP TABLE overlay_themes; DELETE FROM schema_migrations WHERE id >= 3; DELETE FROM overlay_settings;');
+    // Database della rc.2: solo le migrazioni 1–2, niente tabella dei temi, impostazioni nel vecchio formato.
+    const db = new DatabaseSync(legacyDatabase(dir, 2));
     const ins = db.prepare("INSERT INTO overlay_settings (key, value, updated_at) VALUES (?, ?, '2026-01-01')");
     ins.run('colors', JSON.stringify({ primary: '#112233', accent: '#445566', background: 'rgba(1, 2, 3, 0.5)', text: '#fefefe', success: '#00ff00', failure: '#ff0000' }));
     ins.run('layout', JSON.stringify({ position: 'top-center', scale: 1.25, width: 1280, height: 720, offsetX: 12, offsetY: 34 }));
     ins.run('notifications', JSON.stringify({ durationMs: 6000, maxQueue: 10, showThrows: false, showFailures: true }));
     db.close();
 
-    ({ app } = await makeApp({ dir, configureTwitch: false }));
+    const { app } = await makeApp({ dir, configureTwitch: false });
     try {
-      assert.equal(app.db.schemaVersion(), 3);
+      assert.equal(app.db.schemaVersion(), LATEST_SCHEMA);
       const active = app.themes.active();
       assert.equal(active.slug, 'classic');
       assert.equal(active.modified, true);

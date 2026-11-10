@@ -48,6 +48,23 @@ Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10
 
 Dati: `~/umbrel/app-data/piu-live-catch/data` (database, immagini, backup, log, `secret.key`), inclusi nei backup di Umbrel.
 
+## Cartella di rete per i backup (versione in sviluppo, non pubblicata)
+
+Disponibile solo nel ramo di sviluppo `feature/manual-backup-pokedex`: **la rc.3 pubblicata nello store non ha questa funzione** e il manifest dello store non è stato modificato.
+
+Il manifest `piu-live-catch/umbrel-app.yml` del ramo dichiara una cartella scelta dall'utente (`folderAccess`, id `backup-folder`) montata in scrittura nel servizio `web` in `/backups-network` (`BACKUP_TARGET_ROOT`).
+
+1. umbrelOS 2.x → **File** → **Rete**: aggiungi la condivisione del NAS (SMB) oppure collega un disco esterno.
+2. Impostazioni dell'app Live Catch → *Cartella dei backup* → scegli la cartella.
+3. Dashboard → *Backup & Sistema → Backup di rete* → **Verifica connessione**, poi attiva i backup automatici.
+
+Limiti:
+- la chiave `folderAccess` è supportata da umbrelOS 2.x (usata da altre app dello store ufficiale); il linter fissato nella CI la ignora senza errori. **Il comportamento reale su un Umbrel non è stato verificato**;
+- su umbrelOS 1.x la chiave non esiste: la sezione indica "cartella non montata" e i backup locali in `/data/backups` continuano a funzionare;
+- l'app non monta condivisioni e non conosce le credenziali di rete: se la condivisione cade, i backup falliscono con un errore chiaro e vengono ritentati, senza bloccare il gioco.
+
+Per il metodo B (SSH/Docker) monta la condivisione sull'host e usa il volume commentato in `docker-compose.yml` (`- /mnt/nas/livecatch:/backups-network`).
+
 ## Hostname dedicato passo per passo
 
 **Perché.** Su Umbrel tutte le app condividono l'indirizzo `umbrel.local` (cambiano solo le porte). I browser non separano i cookie per porta, quindi senza un nome dedicato il cookie della dashboard arriva anche alle altre app. Con un nome dedicato la dashboard vive su un indirizzo tutto suo.

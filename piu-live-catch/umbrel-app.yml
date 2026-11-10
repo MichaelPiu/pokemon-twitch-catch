@@ -26,6 +26,17 @@ support: https://github.com/MichaelPiu/piu-umbrel-app-store/issues
 port: 8788
 gallery: []
 path: "/admin"
+# umbrelOS 2.x: l'utente sceglie una cartella (Home, disco esterno o condivisione di
+# rete già aggiunta in File) che viene montata in /backups-network per i backup
+# automatici. Su umbrelOS 1.x la chiave viene ignorata: i backup di rete restano
+# disattivati e l'app mostra "cartella non montata".
+folderAccess:
+  - id: backup-folder
+    name: Cartella dei backup
+    note: Scegli una cartella di rete o di un disco esterno. Live Catch scrive solo i propri file livecatch-*.sqlite.gz e i relativi manifest nella sottocartella configurata.
+    mounts:
+      - service: web
+        targetPath: /backups-network
 defaultUsername: "admin"
 deterministicPassword: true
 icon: https://raw.githubusercontent.com/MichaelPiu/piu-umbrel-app-store/main/assets/live-catch-icon.svg

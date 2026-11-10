@@ -280,3 +280,24 @@
   /* Solo il pallino di stato: il testo completo resta nella pagina Twitch. */
   .tw-pill { font-size: 0; padding: 10px; gap: 0; }
 }
+
+/* Modalità manuale: indicatori ben visibili, stesso linguaggio visivo della dashboard */
+.mode-pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; font-weight: 600; font-size: 0.9rem;
+  background: var(--panel2); border: 1px solid var(--line); color: var(--text); text-decoration: none; letter-spacing: 0.02em; }
+.mode-pill.manual { background: rgba(139, 92, 246, 0.18); border-color: rgba(167, 139, 250, 0.6); color: #ede9fe; }
+.mode-pill.hidden { display: none; }
+.manual-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); animation: lc-pulse 1.8s infinite; }
+@keyframes lc-pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); } 70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+.manual-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; margin-bottom: 18px; border-radius: var(--radius);
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.28), rgba(139, 92, 246, 0.1)); border: 1px solid rgba(167, 139, 250, 0.55); }
+.check-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.check-list li { display: flex; gap: 8px; align-items: baseline; }
+.check-list .ok { color: var(--ok); } .check-list .ko { color: var(--err); }
+.diff-table td:first-child { color: var(--muted); }
+.diff-table .from { text-decoration: line-through; color: var(--muted); }
+.diff-table .to { color: #ddd6fe; font-weight: 600; }
+.origin-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.78rem; border: 1px solid var(--line); background: var(--panel2); }
+.origin-badge.twitch { border-color: rgba(167, 139, 250, 0.6); color: #ddd6fe; }
+.origin-badge.manual { border-color: rgba(34, 197, 94, 0.55); color: #bbf7d0; }
+.origin-badge.admin, .origin-badge.import { border-color: rgba(245, 158, 11, 0.55); color: #fde68a; }
+.path-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; word-break: break-all; overflow-wrap: anywhere; }

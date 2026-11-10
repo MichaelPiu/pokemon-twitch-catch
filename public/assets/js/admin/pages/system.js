@@ -1,5 +1,6 @@
 import { h, mount, get, post, put, del, api, fmt } from '../../lib.js';
 import { card, table, act, confirmDialog, stat, field, toast } from '../ui.js';
+import { netBackupCard } from './netbackup.js';
 
 export async function system({ el }) {
   const load = async () => {
@@ -26,7 +27,8 @@ export async function system({ el }) {
         h('div', { class: 'row', style: { marginTop: '12px' } }, Object.entries(sys.components).map(([k, v]) =>
           h('span', { class: 'pill' }, `${k}: ${typeof v === 'object' ? `overlay ${v.overlay} · admin ${v.admin}` : v}`))),
         h('p', { class: 'muted small' }, `Cartella dati nel container: ${sys.dataDir}. Lo stato del container è visibile anche nell'app Umbrel; l'endpoint /health viene usato da Docker per il controllo automatico.`)),
-      card('Backup',
+      card('Backup locali (cartella dati dell\'app)',
+        h('p', { class: 'muted small' }, 'Copie nella cartella dati del container, incluse nei backup di Umbrel. Per una copia su un altro dispositivo usa la cartella di rete qui sotto.'),
         h('div', { class: 'form' },
           field('Backup automatico giornaliero', bs, 'autoEnabled', { type: 'checkbox' }),
           field('Ora del backup (0–23)', bs, 'hour', { min: 0, max: 23 }),
@@ -60,6 +62,7 @@ export async function system({ el }) {
             const r = await act(() => api('POST', '/api/admin/backups-upload', f), 'Backup caricato: ora puoi ripristinarlo dalla lista');
             if (r) load();
           } }, 'Carica'))),
+      netBackupCard({ reload: load }),
       card('Esportazione e importazione dati',
         h('p', { class: 'muted small' }, 'Esporta spettatori, collezioni e impostazioni dei Pokémon in un file JSON leggibile. L\'importazione unisce i dati (o li sostituisce) e crea prima un backup di sicurezza.'),
         h('div', { class: 'row' },

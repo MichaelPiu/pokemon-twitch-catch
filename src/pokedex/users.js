@@ -1,15 +1,18 @@
 // Spettatori Twitch, identificati dall'ID Twitch univoco (il nome può cambiare).
 import { nowIso } from '../database/index.js';
 
-export function upsertUser(db, { twitchId, login, displayName, isDemo = false }) {
+// origin: 'twitch' (spettatore reale), 'local' (giocatore delle sessioni manuali,
+// twitch_id con prefisso "local:"), 'demo'. L'origine non cambia dopo la creazione.
+export function upsertUser(db, { twitchId, login, displayName, isDemo = false, origin = null }) {
   const now = nowIso();
   const lg = String(login || '').toLowerCase();
   const dn = displayName || login || twitchId;
+  const org = isDemo ? 'demo' : origin || (String(twitchId).startsWith('local:') ? 'local' : 'twitch');
   db.run(
-    `INSERT INTO twitch_users (twitch_id, login, display_name, is_demo, first_seen_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO twitch_users (twitch_id, login, display_name, is_demo, first_seen_at, last_seen_at, origin)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(twitch_id) DO UPDATE SET login = excluded.login, display_name = excluded.display_name, last_seen_at = excluded.last_seen_at`,
-    String(twitchId), lg, dn, isDemo ? 1 : 0, now, now,
+    String(twitchId), lg, dn, isDemo ? 1 : 0, now, now, org,
   );
   return db.get('SELECT * FROM twitch_users WHERE twitch_id = ?', String(twitchId));
 }

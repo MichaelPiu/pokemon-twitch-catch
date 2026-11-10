@@ -8,7 +8,7 @@ export const REJECT_LABEL = {
   offline: 'canale offline', paused: 'gioco in pausa', no_spawn: 'nessun Pokémon presente', expired: 'spawn scaduto', late: 'evento in ritardo',
   user_limit: 'limite tentativi utente', already_caught: 'già catturato', banned: 'utente escluso', ball_disabled: 'ball disattivata',
   demo_mode: 'modalità demo attiva', live_mode: 'modalità live attiva', reward_unmapped: 'ricompensa senza Poké Ball',
-  canceled: 'riscatto annullato (cattura revocata)',
+  canceled: 'riscatto annullato (cattura revocata)', manual_mode: 'sessione manuale attiva (riscatti Twitch non elaborati)',
 };
 
 export const SPAWN_STATUS = {

@@ -1,6 +1,8 @@
 // Utilità per i test: app isolata su cartella temporanea, finto Twitch
 // (Helix + OAuth via fetch simulato, EventSub via vero server WebSocket locale).
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { migrations } from '../src/database/migrations.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
@@ -233,6 +235,23 @@ export async function makeApp({ dir = tempDir(), twitch = null, eventsub = null,
   return { app, dir, config };
 }
 
+// Database come lo lascerebbe una versione precedente dell'app: solo le migrazioni
+// fino a upTo (es. 2 = 1.0.0-rc.2, 3 = 1.0.0-rc.3). Ritorna il percorso del file.
+export function legacyDatabase(dir, upTo) {
+  mkdirSync(join(dir, 'db'), { recursive: true });
+  const file = join(dir, 'db', 'livecatch.sqlite');
+  const d = new DatabaseSync(file);
+  d.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  d.exec(`CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))`);
+  for (const m of migrations.filter((x) => x.id <= upTo)) {
+    d.exec(m.sql);
+    d.prepare('INSERT INTO schema_migrations (id, name) VALUES (?, ?)').run(m.id, m.name);
+  }
+  d.close();
+  return file;
+}
+
 export function cleanup(dir) {
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignora */ }
 }
@@ -292,4 +311,39 @@ export function rawRequest(port, { method = 'GET', path = '/', headers = {}, bod
     if (data) req.write(data);
     req.end();
   });
+}
+
+// Client HTTP autenticato come amministratore (login + cambio password obbligatorio).
+// Usa le vere rotte, con cookie di sessione e token CSRF.
+export async function adminClient(app, { password = 'NuovaPassword2026' } = {}) {
+  const port = await app.listen(0, '127.0.0.1');
+  const base = `http://127.0.0.1:${port}`;
+  let cookie = '';
+  let csrf = '';
+  const req = async (method, path, body, { auth = true, csrfToken } = {}) => {
+    const res = await fetch(base + path, {
+      method,
+      headers: {
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(auth && cookie ? { Cookie: cookie } : {}),
+        ...(auth && method !== 'GET' ? { 'X-CSRF-Token': csrfToken ?? csrf } : {}),
+        Origin: base,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = text; }
+    return { status: res.status, data };
+  };
+  const r0 = await fetch(`${base}/api/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ username: 'admin', password: 'initialpass123' }),
+  });
+  if (r0.status !== 200) throw new Error(`login non riuscito: ${r0.status}`);
+  cookie = r0.headers.get('set-cookie').split(';')[0];
+  csrf = (await r0.json()).csrf;
+  const ch = await req('POST', '/api/auth/change-password', { currentPassword: 'initialpass123', newPassword: password });
+  if (ch.status !== 200) throw new Error(`cambio password non riuscito: ${ch.status} ${JSON.stringify(ch.data)}`);
+  csrf = (await req('GET', '/api/auth/me')).data.csrf;
+  return { req, base, get cookie() { return cookie; }, get csrf() { return csrf; } };
 }

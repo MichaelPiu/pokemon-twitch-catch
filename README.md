@@ -29,11 +29,12 @@ Live Catch è un gioco interattivo per la tua diretta Twitch che gira interament
 11. [Collegamento OBS](#collegamento-obs)
 12. [Configurazione della dashboard](#configurazione-della-dashboard)
 13. [Comandi chat](#comandi-chat)
-14. [Backup](#backup) · [Ripristino](#ripristino) · [Aggiornamento](#aggiornamento)
-15. [Risoluzione problemi](#risoluzione-problemi)
-16. [Sviluppo e test](#sviluppo-e-test)
-17. [Pubblicazione di una nuova versione](#pubblicazione-di-una-nuova-versione)
-18. [Cosa devi autorizzare tu](#cosa-devi-autorizzare-tu)
+14. [Modalità manuale](#modalità-manuale-gioco-senza-twitch) · [Modifica del Pokédex](#modifica-manuale-del-pokédex)
+15. [Backup](#backup) · [Ripristino](#ripristino) · [Aggiornamento](#aggiornamento)
+16. [Risoluzione problemi](#risoluzione-problemi)
+17. [Sviluppo e test](#sviluppo-e-test)
+18. [Pubblicazione di una nuova versione](#pubblicazione-di-una-nuova-versione)
+19. [Cosa devi autorizzare tu](#cosa-devi-autorizzare-tu)
 
 Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/UMBREL.md](docs/UMBREL.md). Modifiche per versione: [CHANGELOG.md](CHANGELOG.md).
 
@@ -50,9 +51,12 @@ Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/
 | Comandi | `!pokedex`, `!pokemon`, `!dex @utente`, `!ultimocatturato`, `!classifica`, `!help` — risposte, alias, cooldown, anti-spam, limite bot configurabili. |
 | Overlay OBS | `/overlay` trasparente, aggiornato via WebSocket, animazioni, coda notifiche, colori/posizione/scala configurabili, anteprima in dashboard. |
 | Statistiche | Per diretta, giornaliere, settimanali, mensili, complessive; Pokémon più apparsi/catturati/difficili, utenti più attivi, ball più usate, shiny. |
-| Dashboard | Unica, con sidebar: Panoramica, Statistiche, Storico dirette, Spettatori & Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Overlay, Twitch, DEMO, Backup & Sistema. |
+| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Overlay, Twitch, DEMO, Backup & Sistema. |
 | Sicurezza | Password scrypt, cambio password obbligatorio, sessioni HttpOnly/SameSite, CSRF, rate limiting, token Twitch cifrati AES-256-GCM, redazione dei segreti nei log. |
 | Backup | Giornaliero automatico con rotazione, manuale, download/upload, ripristino guidato con backup di sicurezza, esportazione/importazione JSON. |
+| Modalità manuale | Avvia il vero motore di gioco dalla dashboard con il canale OFFLINE (prove, OBS, giochi in locale): dati reali marcati MANUAL, sessioni distinte da quelle Twitch, la diretta ha sempre la priorità. |
+| Modifica Pokédex | Ricerca, filtri, correzione, registrazione e rimozione di esemplari con anteprima delle differenze, controllo dei conflitti e registro delle modifiche. |
+| Backup di rete | Backup automatici su una cartella di rete montata (NFS/SMB tramite Umbrel o volume Docker) con manifest e checksum, verifica della connessione, ritentativi, rotazione e ripristino guidato. |
 | DEMO | Modalità di prova separata (utenti/sessioni marcati DEMO) che non tocca le statistiche reali e non è disponibile durante una diretta. |
 
 ## Architettura
@@ -426,13 +430,57 @@ Pagine pubbliche (disattivabili da *Backup & Sistema*): `/` introduzione, `/poke
 
 Prefisso, testi, alias, cooldown globale e per utente, anti-spam e limite di messaggi del bot si configurano in **Comandi chat**. I comandi funzionano **solo durante la diretta**.
 
+## Modalità manuale (gioco senza Twitch)
+
+Sezione **Controllo gioco** della dashboard.
+
+- **AUTOMATICA** (normale): il gioco parte e si ferma con la diretta Twitch.
+- **MANUALE**: *Avvia gioco manualmente* accende lo stesso motore della diretta (spawn, probabilità, rarità, shiny, Pokédex, statistiche, overlay) con il canale **OFFLINE**. Lo stato Twitch non viene finto: nessuna sottoscrizione EventSub, nessun riscatto reale, nessun messaggio in chat.
+- Durante la sessione la barra in alto mostra **SESSIONE MANUALE**; la pagina mostra tempo trascorso, incontri, catture, lanci ed errori. Da lì si genera un incontro e si lancia una Poké Ball per un *giocatore locale* (account separato, prefisso `local:`, mai confuso con un utente Twitch) o per uno spettatore già registrato.
+- *Ferma gioco* chiude la sessione: catture e statistiche già registrate restano.
+- **Priorità a Twitch**: se il canale va in diretta mentre è attiva una sessione manuale, la sessione manuale viene chiusa (motivo `twitch_live`, registrato nel log e nel registro delle modifiche), parte la sessione Twitch e la dashboard mostra un avviso. Nessun dato viene perso. Non si può avviare una sessione manuale mentre il canale è LIVE o in pausa, né durante una DEMO.
+- Se l'app si riavvia con una sessione manuale aperta, la sessione viene chiusa come interrotta (`restart`) con i dati registrati fino a quel momento.
+- **Prova di OBS senza andare in diretta**: avvia la sessione manuale, apri la sorgente `/overlay` in OBS e premi *Genera incontro ora*: l'overlay mostra spawn, lanci e catture reali.
+- **Storico dirette**: ogni sessione ha un tipo (`TWITCH`, `MANUAL`, `DEMO`) con inizio, fine, conteggi ed errori; il filtro permette di vedere solo un tipo. Le statistiche reali comprendono Twitch e manuale; la DEMO resta esclusa.
+
+## Modifica manuale del Pokédex
+
+Sezione **Modifica Pokédex** (solo amministratore).
+
+- Ricerca dello spettatore e dei Pokémon per nome o numero; filtri: catturati, visti, mancanti, shiny, corretti, aggiunti dall'admin, MANUAL, TWITCH.
+- Per ogni esemplare si possono correggere forma (stessa specie), shiny, Poké Ball, data di cattura e note; si può registrare un esemplare mancante (rifiutato se esiste già, salvo *esemplare aggiuntivo* esplicito) o rimuoverlo con conferma.
+- Prima di salvare viene mostrata la **tabella delle differenze** (prima → dopo); *Annulla* scarta le modifiche.
+- **Origine sempre visibile**: TWITCH, MANUAL, ADMIN, IMPORT, DEMO. Una correzione non cambia l'origine (un esemplare catturato in diretta resta TWITCH, marcato ✎ *corretto*); gli esemplari registrati a mano sono ADMIN. Lo storico dei tentativi e delle sessioni non viene mai modificato: le correzioni toccano solo la collezione.
+- **Sicurezza dei dati**: ogni modifica è in una transazione, i valori sono validati, e un numero di revisione impedisce di sovrascrivere modifiche fatte nel frattempo da un'altra scheda o da una cattura (errore 409, ricarica e riprova). Ogni operazione finisce nel **registro delle modifiche** (chi, quando, cosa, valori prima e dopo).
+
 ## Backup
 
 - **Automatico**: ogni giorno all'ora scelta (default 04:00), conservando gli ultimi N (default 14).
 - **Manuale**: *Backup & Sistema → Crea backup ora*.
 - File: `/data/backups/livecatch-AAAAMMGG-HHMMSS-tipo.sqlite.gz` (copia consistente del database, compressa). Scaricabili dalla dashboard.
 - **Esportazione JSON** di spettatori, collezioni e impostazioni dei Pokémon (leggibile e importabile).
+- **Backup di rete** (*Backup & Sistema → Backup di rete*), vedi sotto.
 - Per una copia completa del volume (immagini e chiave di cifratura comprese): `sh scripts/backup-volume.sh <cartella-dati> <destinazione>`. Su Umbrel (metodo A) la cartella dell'app è inclusa anche nei backup di Umbrel.
+
+### Backup di rete
+
+I backup automatici possono essere scritti in una **cartella di rete** (NAS via NFS/SMB) o su un disco esterno. L'app non monta condivisioni da sola, non usa comandi di shell e non chiede credenziali di rete: la cartella deve essere **montata nel container** in `/backups-network` (variabile `BACKUP_TARGET_ROOT`).
+
+- **Umbrel (metodo A, umbrelOS 2.x)**: aggiungi la condivisione in *File → Rete*, poi nelle impostazioni dell'app Live Catch scegli la *Cartella dei backup* (chiave `folderAccess` del manifest). Su umbrelOS 1.x questa scelta non esiste: la sezione mostra "cartella non montata" e i backup di rete restano disattivati.
+- **Docker / metodo B**: monta la condivisione sull'host e togli il commento al volume `- /mnt/nas/livecatch:/backups-network` in `docker-compose.yml`. La cartella deve essere scrivibile dall'utente 1000.
+
+Nella dashboard:
+1. **Verifica connessione**: controlla che la cartella esista, sia leggibile e scrivibile (crea e cancella un file temporaneo `.livecatch-write-test-…`), e mostra lo spazio libero. Non tocca altri file.
+2. **Impostazioni**: sottocartella (default `livecatch`, mai fuori dalla cartella montata), backup automatici sì/no, frequenza (ogni ora, ogni 6 o 12 ore, giornaliera, settimanale), ora, numero di backup da conservare, backup prima di ogni aggiornamento.
+3. **Stato**: ultimo tentativo, ultimo backup riuscito, ultimo errore, prossimo ritentativo.
+
+Come funziona:
+- Copia consistente dell'intero database con `VACUUM INTO` (funziona con il gioco in corso), compressa e accompagnata da un **manifest** `.manifest.json` con versione dell'app, schema, data, contenuto e checksum SHA-256.
+- Scrittura atomica: file temporaneo, verifica, rinomina; il manifest viene scritto per ultimo, quindi un backup senza manifest valido non viene mai considerato completo.
+- **Nessun segreto in chiaro**: sessioni di accesso escluse; credenziali Twitch solo cifrate; la chiave di cifratura `secret.key` **non** è inclusa (va conservata a parte, vedi `scripts/backup-volume.sh`). Le immagini caricate non sono incluse.
+- I backup automatici vengono saltati se il database non è cambiato dall'ultimo backup.
+- **Errori di rete**: ogni operazione ha un tempo massimo (`BACKUP_TIMEOUT_MS`, default 30 s), quindi una condivisione irraggiungibile non blocca il gioco; i ritentativi avvengono dopo 5, 10, 20… minuti fino a un massimo di 6 ore.
+- **Rotazione**: elimina solo i file `livecatch-*.sqlite.gz` creati dall'app (con il loro manifest), mai file sconosciuti, e non elimina mai l'ultimo backup valido.
 
 ## Ripristino
 
@@ -441,7 +489,24 @@ Prefisso, testi, alias, cooldown globale e per utente, anti-spam e limite di mes
 3. Il ripristino è bloccato durante una diretta.
 4. Un backup creato da una versione più recente dell'app viene rifiutato prima di qualsiasi modifica (anche al caricamento del file).
 
+**Ripristino da un backup di rete** (*Backup di rete → Ripristina*), procedura guidata:
+1. verifica di checksum, integrità SQLite, schema e versione: un file corrotto o creato da una versione più recente viene rifiutato con un messaggio chiaro e nulla viene modificato;
+2. riepilogo del contenuto (spettatori, catture, sessioni, data, versione);
+3. conferma esplicita scrivendo `RIPRISTINA`;
+4. backup di sicurezza `pre-restore` dello stato attuale, arresto del motore di gioco (una sessione manuale viene chiusa con motivo `restore`), chiusura del database con checkpoint del WAL, sostituzione e verifica di integrità;
+5. se qualcosa va storto il database precedente viene rimesso al suo posto automaticamente.
+
+Il ripristino conserva la sessione di accesso corrente e le impostazioni dei backup di rete; è bloccato durante una diretta ed è registrato nel registro delle modifiche.
+
 Se ripristini su un'installazione nuova, i token Twitch salvati nel backup sono cifrati con la vecchia `secret.key`: ricopia anche quel file oppure ricollega gli account Twitch (2 minuti).
+
+### Precauzioni per non perdere i dati
+
+- Tieni attivi sia i backup locali (`/data/backups`) sia quelli di rete: proteggono da guasti diversi.
+- Conserva a parte una copia di `secret.key` (`scripts/backup-volume.sh`): senza quella le credenziali Twitch di un backup vanno ricollegate.
+- Prima di un aggiornamento crea un backup manuale e scaricalo; l'app crea comunque il backup `pre-migration` e, con l'opzione attiva, il backup di rete `pre-update`.
+- Non copiare a mano il file del database con l'app in esecuzione (WAL): usa i backup della dashboard.
+- Dopo aver configurato la cartella di rete, premi **Verifica** su un backup almeno una volta: controlla checksum e integrità senza modificare nulla.
 
 ## Aggiornamento
 
@@ -456,10 +521,13 @@ Versioni dello schema del database:
 |---|---|
 | 1.0.0-rc.1, 1.0.0-rc.2 | v2 |
 | 1.0.0-rc.3 (Overlay Themes) | v3: tabella `overlay_themes` |
+| versione in sviluppo (modalità manuale, backup di rete, modifica Pokédex) — **non pubblicata** | v4: tipo di sessione, origine degli esemplari, tabella `admin_audit` |
 
 Un'app non apre mai un database (o un backup) con uno schema più recente di quello che conosce: l'avvio o il ripristino vengono rifiutati con un messaggio chiaro e **senza modificare nulla**. Fanno eccezione le versioni fino alla 1.0.0-rc.2, che non hanno questo controllo (vedi sotto).
 
 ### Tornare a una versione precedente (rollback)
+
+**Dallo schema v4 alla 1.0.0-rc.3.** La migrazione 4 aggiunge solo colonne e una tabella, ma la rc.3 rifiuta di avviarsi su un database v4 (controllo dello schema). Per tornare alla rc.3 bisogna rimettere il backup `…-pre-migration.sqlite.gz` creato all'aggiornamento: a app ferma, decomprimilo in `data/db/livecatch.sqlite` (dopo aver spostato altrove il database attuale e i file `-wal`/`-shm`), poi avvia la rc.3. Le modifiche fatte dopo l'aggiornamento restano nel database spostato. *Procedura non ancora provata su un Umbrel reale.*
 
 Esempio: dalla 1.0.0-rc.3 (schema v3) alla 1.0.0-rc.2 (schema v2). Prima di tutto crea un backup manuale (*Backup & Sistema → Crea backup ora*) e scaricalo.
 

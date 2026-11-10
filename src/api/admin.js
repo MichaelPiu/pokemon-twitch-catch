@@ -13,6 +13,7 @@ import { periodStats, totals, topLists, recentCaptures, sessionDetail, sessionTi
 import { captureProbability } from '../capture/capture.js';
 import { randomToken } from '../security/crypto.js';
 import { validHostname, parseHost } from '../security/origin.js';
+import { audit } from '../audit.js';
 
 const id = (x, name = 'ID') => v.num(x, { min: 1, int: true, name });
 
@@ -74,10 +75,15 @@ export function registerAdminRoutes(app) {
   r.get('/api/admin/sessions', (ctx) => {
     const limit = Math.min(200, Math.max(1, Math.floor(Number(ctx.query.get('limit'))) || 50));
     const offset = Math.max(0, Number(ctx.query.get('offset')) || 0);
-    const demo = ctx.query.get('demo') === '1' ? 1 : 0;
+    // Filtro per tipo: kind=twitch|manual|demo|real (twitch + manual). Compatibilità: demo=1.
+    const kind = ctx.query.get('kind') || (ctx.query.get('demo') === '1' ? 'demo' : 'real');
+    if (!['twitch', 'manual', 'demo', 'real'].includes(kind)) throw new HttpError(400, 'Tipo di sessione non valido');
+    const where = kind === 'real' ? "kind IN ('twitch','manual')" : 'kind = ?';
+    const args = kind === 'real' ? [] : [kind];
     return {
-      total: db().get('SELECT COUNT(*) AS n FROM stream_sessions WHERE is_demo = ?', demo).n,
-      items: db().all('SELECT * FROM stream_sessions WHERE is_demo = ? ORDER BY started_at DESC LIMIT ? OFFSET ?', demo, limit, offset),
+      kind,
+      total: db().get(`SELECT COUNT(*) AS n FROM stream_sessions WHERE ${where}`, ...args).n,
+      items: db().all(`SELECT * FROM stream_sessions WHERE ${where} ORDER BY started_at DESC LIMIT ? OFFSET ?`, ...args, limit, offset),
     };
   });
   r.get('/api/admin/sessions/:id', (ctx) => {
@@ -134,8 +140,8 @@ export function registerAdminRoutes(app) {
     const qty = v.num(b.quantity ?? 1, { min: 1, max: 100, int: true, name: 'Quantità' });
     db().tx(() => {
       for (let i = 0; i < qty; i++) {
-        db().run("INSERT INTO user_pokemon (user_id, pokemon_id, is_shiny, is_demo, ball_name, source) VALUES (?, ?, ?, ?, ?, 'admin')",
-          u.id, p.id, v.bool(b.shiny) ? 1 : 0, u.is_demo, 'Aggiunto da admin');
+        db().run("INSERT INTO user_pokemon (user_id, pokemon_id, is_shiny, is_demo, ball_name, source, origin, updated_by) VALUES (?, ?, ?, ?, ?, 'admin', ?, ?)",
+          u.id, p.id, v.bool(b.shiny) ? 1 : 0, u.is_demo, 'Aggiunto da admin', u.is_demo ? 'demo' : 'admin', ctx.session?.username || null);
       }
     });
     app.log.info(`Admin: aggiunti ${qty} Pokémon a ${u.display_name}`);
@@ -202,7 +208,7 @@ export function registerAdminRoutes(app) {
   r.post('/api/admin/spawn/manual', async (ctx) => {
     const b = await readJson(ctx.req);
     // La generazione manuale rispetta lo stato LIVE: senza diretta serve la modalità DEMO.
-    if (!app.engine.running) throw new HttpError(409, 'Il motore di gioco non è attivo: il canale è offline. Usa la modalità DEMO per i test.');
+    if (!app.engine.running) throw new HttpError(409, 'Il motore di gioco non è attivo: il canale è offline. Avvia una sessione manuale (o la DEMO) per giocare senza diretta.');
     if (activeSpawn(db())) throw new HttpError(409, 'C\'è già un Pokémon in campo: terminalo prima di generarne un altro');
     const sp = app.engine.spawn({ source: 'manual', pokemonId: b.pokemonId ? id(b.pokemonId) : null, shiny: b.shiny === undefined || b.shiny === null ? null : v.bool(b.shiny) });
     if (!sp) throw new HttpError(409, app.engine.lastError || 'Impossibile generare il Pokémon');
@@ -669,7 +675,11 @@ export function registerAdminRoutes(app) {
 
   // --- Backup e sistema ------------------------------------------------------------
   r.get('/api/admin/backups', () => ({ items: app.backups.list(), settings: app.adminSettings.get('backup') }));
-  r.post('/api/admin/backups', () => app.backups.create('manual'));
+  r.post('/api/admin/backups', (ctx) => {
+    const res = app.backups.create('manual');
+    audit(db(), { admin: ctx.session?.username || null, action: 'backup_local_create', targetType: 'backup', targetId: res.filename, detail: { size: res.size } }, app.log);
+    return res;
+  });
   r.put('/api/admin/backups/settings', async (ctx) => {
     const b = await readJson(ctx.req);
     const cur = app.adminSettings.get('backup');
@@ -693,10 +703,11 @@ export function registerAdminRoutes(app) {
   });
   r.delete('/api/admin/backups/:name', (ctx) => {
     try { app.backups.remove(ctx.params.name); } catch (e) { throw new HttpError(404, e.message); }
+    audit(db(), { admin: ctx.session?.username || null, action: 'backup_local_delete', targetType: 'backup', targetId: ctx.params.name }, app.log);
     return { ok: true };
   });
   r.post('/api/admin/backups/:name/restore', async (ctx) => {
-    try { return await app.restore(ctx.params.name); } catch (e) {
+    try { return await app.restore(ctx.params.name, { admin: ctx.session?.username || null, keepSessionOf: ctx.session?.sessionId }); } catch (e) {
       if (e instanceof HttpError) throw e;
       throw new HttpError(400, `Ripristino non riuscito: ${e.message}`);
     }

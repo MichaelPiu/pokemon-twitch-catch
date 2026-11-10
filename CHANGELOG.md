@@ -1,5 +1,33 @@
 # Changelog
 
+## Non pubblicata — Modalità manuale, backup di rete e modifica del Pokédex
+
+Sviluppata nel ramo `feature/manual-backup-pokedex`. **Non è una release**: nessun tag, nessuna immagine, store invariato (resta la 1.0.0-rc.3).
+
+### Database: schema v4 (migrazione 4)
+- `stream_sessions`: colonne `kind` (`twitch` / `manual` / `demo`), `errors`, `last_error`.
+- `user_pokemon`: colonne `origin` (`twitch` / `manual` / `admin` / `import` / `demo`, ricavata dai dati esistenti), `note`, `rev`, `updated_at`, `updated_by`.
+- `twitch_users`: colonna `origin` (`twitch` / `demo` / `local`).
+- Nuova tabella `admin_audit` (registro delle modifiche).
+- Solo aggiunte, nessun dato modificato o rimosso. Backup `pre-migration` automatico prima della migrazione. La rc.3 rifiuta un database v4: per tornare indietro va rimesso il backup `pre-migration` (README → *Tornare a una versione precedente*).
+
+### Modalità manuale
+- Nuova sezione **Controllo gioco**: modalità AUTOMATICA/MANUALE, avvio e arresto del gioco con Twitch OFFLINE usando lo stesso motore, tempo trascorso, incontri, catture, errori, indicatore SESSIONE MANUALE nella barra in alto.
+- Lanci per giocatori locali (separati dagli utenti Twitch) o per spettatori registrati; nessuna chiamata a Twitch, nessun EventSub, nessun riscatto reale.
+- La diretta Twitch ha la priorità: la sessione manuale viene chiusa (`twitch_live`), registrata e segnalata in dashboard.
+- Storico dirette con filtro per tipo di sessione.
+
+### Backup di rete
+- Backup automatici e manuali in una cartella montata in `/backups-network` (Umbrel `folderAccess` o volume Docker): verifica della connessione, frequenza, ora, rotazione, backup prima degli aggiornamenti, stato e ritentativi, tempi massimi per non bloccare l'app.
+- Copia consistente (`VACUUM INTO`), manifest con versione, schema e SHA-256, scrittura atomica, nessun segreto in chiaro, file sconosciuti mai toccati, ultimo backup valido mai eliminato.
+- Ripristino guidato: verifica, riepilogo, conferma, backup di sicurezza, arresto del motore, gestione del WAL, verifica di integrità e rollback automatico in caso di errore.
+
+### Modifica del Pokédex
+- Nuova sezione **Modifica Pokédex**: ricerca e filtri, correzione, registrazione e rimozione di esemplari con anteprima delle differenze, conferma, controllo dei conflitti (revisione), origine sempre visibile, registro delle modifiche.
+
+### Test
+- 37 nuovi test (modalità manuale, backup di rete, modifica del Pokédex).
+
 ## 1.0.0-rc.3 — Overlay Themes e correzioni dopo l'audit pre-release
 
 Terza versione candidata (**Release Candidate, non una versione stabile**), pubblicata il 10 novembre 2026: tag `v1.0.0-rc.3`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0-rc.3@sha256:5b1fb376086df52b883cac684ae939c0451f1a92695c8599a8c1cc79b5dbb114` (`linux/amd64`, `linux/arm64`), store Umbrel aggiornato.

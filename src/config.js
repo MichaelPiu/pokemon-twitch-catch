@@ -23,6 +23,10 @@ export function loadConfig(env = process.env) {
     imagesDir: resolve(dataDir, 'images'),
     backupsDir: resolve(dataDir, 'backups'),
     logsDir: resolve(dataDir, 'logs'),
+    // Cartella di rete per i backup: un volume montato nel container (su umbrelOS 2.x
+    // si sceglie nelle impostazioni dell'app). Il container non monta condivisioni da solo.
+    backupTargetRoot: resolve(env.BACKUP_TARGET_ROOT || '/backups-network'),
+    backupTimeoutMs: Math.max(200, int(env.BACKUP_TIMEOUT_MS, 30000)),
     port: int(env.PORT, 8080),
     host: env.HOST || '0.0.0.0',
     // Password iniziale dell'amministratore (su Umbrel: ${APP_PASSWORD}).

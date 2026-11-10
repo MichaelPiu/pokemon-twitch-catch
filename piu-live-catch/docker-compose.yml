@@ -29,5 +29,7 @@ services:
       # - piu-live-catch_app_proxy_1: umbrelOS 1.x, sidecar app_proxy.
       # Ogni altro mittente viene ignorato (nessun bypass del limite di login).
       TRUSTED_PROXIES: "docker-gateway,piu-live-catch_app_proxy_1"
+      # Cartella dei backup di rete: montata da umbrelOS (folderAccess in umbrel-app.yml).
+      BACKUP_TARGET_ROOT: /backups-network
     volumes:
       - ${APP_DATA_DIR}/data:/data

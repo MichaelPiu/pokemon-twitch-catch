@@ -12,8 +12,10 @@ export function onLive(fn) { store.listeners.add(fn); return () => store.listene
 // [chiave, icona, etichetta, sottotitolo]
 const NAV = [
   ['overview', 'home', 'Panoramica', 'Stato del gioco, diretta corrente e attività in tempo reale'],
+  ['game', 'gamepad', 'Controllo gioco', 'Modalità automatica (Twitch) o manuale: avvia e ferma il gioco senza andare LIVE'],
   ['stats', 'chart', 'Statistiche', 'Andamento delle dirette, classifiche e confronti'],
   ['users', 'users', 'Pokédex e Utenti', 'Spettatori, collezioni, doppioni e storico catture'],
+  ['pokedex', 'star', 'Modifica Pokédex', 'Correggi, registra o rimuovi i Pokémon di un allenatore, con storico delle modifiche'],
   ['spawn', 'target', 'Gestione Spawn', 'Intervalli, probabilità, eventi e Pokémon in campo'],
   ['pokemon', 'layers', 'Gestione Pokémon', 'Elenco, rarità, difficoltà e importazione da PokéAPI'],
   ['balls', 'gift', 'Poké Ball e Ricompense', 'Moltiplicatori e collegamento ai punti canale'],
@@ -21,7 +23,7 @@ const NAV = [
   ['commands', 'chat', 'Comandi Chat', 'Risposte, cooldown e anti-spam dei comandi'],
   ['overlay', 'monitor', 'Overlay Designer', 'Temi, editor visuale, anteprima e simulatore dell\'overlay per OBS'],
   ['sessions', 'calendar', 'Storico Dirette', 'Tutte le sessioni LIVE con il loro dettaglio'],
-  ['system', 'database', 'Backup e Sistema', 'Backup, ripristino, log e stato del servizio'],
+  ['system', 'database', 'Backup e Sistema', 'Backup locali e su cartella di rete, ripristino, log e stato del servizio'],
   ['settings', 'settings', 'Impostazioni', 'Account, pagine pubbliche e modalità DEMO'],
 ];
 const HIDDEN = { demo: ['flask', 'Modalità DEMO', 'Prova il gioco senza Twitch, separato dalle statistiche reali'] };
@@ -105,7 +107,7 @@ export function showChangePassword(forced) {
   mount(root, h('div', { class: 'login-wrap' }, h('div', { class: 'card login' }, brand(), h('h2', {}, 'Cambio password'), form)));
 }
 
-let mainEl, navEl, sideFoot, sidebar, layout, topTitle, topSub, twPill, cleanup = null;
+let mainEl, navEl, sideFoot, sidebar, layout, topTitle, topSub, twPill, modePill, cleanup = null;
 
 function showApp() {
   navEl = h('nav', { class: 'nav' });
@@ -117,6 +119,7 @@ function showApp() {
   topTitle = h('h1');
   topSub = h('div', { class: 'subtitle' });
   twPill = h('span', { class: 'tw-pill', style: { '--c': 'var(--muted)' } }, h('span', { class: 'dot' }), '…');
+  modePill = h('a', { class: 'mode-pill manual hidden', href: '#/game', title: 'Sessione manuale in corso: il canale resta OFFLINE su Twitch' }, h('span', { class: 'manual-dot' }), 'SESSIONE MANUALE');
   const menu = h('div', { class: 'dropdown hidden' },
     h('a', { href: '#/settings' }, icon('key', { size: 18 }), 'Cambia password'),
     h('a', { href: '/overlay', target: '_blank' }, icon('external', { size: 18 }), 'Apri overlay'),
@@ -131,7 +134,7 @@ function showApp() {
   const topbar = h('header', { class: 'topbar' },
     h('button', { class: 'btn menu-btn', onclick: () => sidebar.classList.toggle('open') }, icon('menu', { size: 20 })),
     h('div', {}, topTitle, topSub),
-    h('div', { class: 'right' }, twPill, h('span', { class: 'vsep' }), userMenu));
+    h('div', { class: 'right' }, modePill, twPill, h('span', { class: 'vsep' }), userMenu));
   layout = h('div', { class: `layout ${localStorage.getItem('lc_collapsed') === '1' ? 'collapsed' : ''}` }, sidebar, h('div', { class: 'content' }, topbar, mainEl));
   mount(root, layout);
   renderSideStatus();
@@ -162,6 +165,7 @@ function renderSideStatus() {
   const tw = s.twitch;
   const [c, label] = !tw.configured ? ['var(--muted)', 'Twitch da configurare']
     : tw.eventsubConnected ? ['var(--ok)', 'Twitch connesso'] : ['var(--err)', 'Twitch non connesso'];
+  modePill.classList.toggle('hidden', s.engine?.mode !== 'manual');
   twPill.style.setProperty('--c', c);
   mount(twPill, h('span', { class: 'dot' }), label);
 }

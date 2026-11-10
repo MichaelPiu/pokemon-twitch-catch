@@ -171,10 +171,43 @@ export class BackupService {
     return { staged, safety: safety.filename };
   }
 
+  // Legge e verifica un backup locale (gzip, integrità, schema compatibile).
+  readVerified(name) {
+    let raw;
+    try { raw = gunzipSync(readFileSync(this.path(name))); } catch (e) {
+      if (/non trovato|non valido/.test(e.message)) throw e;
+      throw new Error('archivio danneggiato (gzip non valido)');
+    }
+    this.verifySqlite(raw);
+    return raw;
+  }
+
+  // Scrive il database da ripristinare accanto a quello attuale (stesso filesystem:
+  // la sostituzione con rename è atomica).
+  stage(raw) {
+    const staged = `${this.dbPath}.restore`;
+    writeFileSync(staged, raw);
+    return staged;
+  }
+
+  // Da chiamare a database chiuso (close() esegue il checkpoint del WAL).
   swapInStaged(staged) {
-    for (const ext of ['-wal', '-shm']) if (existsSync(this.dbPath + ext)) unlinkSync(this.dbPath + ext);
     if (existsSync(this.dbPath)) copyFileSync(this.dbPath, `${this.dbPath}.before-restore`);
+    for (const ext of ['-wal', '-shm']) if (existsSync(this.dbPath + ext)) unlinkSync(this.dbPath + ext);
     renameSync(staged, this.dbPath);
+  }
+
+  // Ripristino non riuscito: rimette il database di prima (copia before-restore) o,
+  // se manca, il backup di sicurezza appena creato. A database chiuso.
+  rollbackSwap(safetyName) {
+    for (const ext of ['-wal', '-shm']) if (existsSync(this.dbPath + ext)) unlinkSync(this.dbPath + ext);
+    const before = `${this.dbPath}.before-restore`;
+    if (existsSync(before)) {
+      copyFileSync(before, this.dbPath);
+      return 'copia del database precedente';
+    }
+    writeFileSync(this.dbPath, gunzipSync(readFileSync(this.path(safetyName))));
+    return `backup di sicurezza ${safetyName}`;
   }
 
   // --- Esportazione / importazione JSON -------------------------------------
@@ -214,7 +247,7 @@ export class BackupService {
           const exists = this.db.get('SELECT id FROM user_pokemon WHERE user_id = ? AND pokemon_id = ? AND caught_at = ?', u.id, p.id, c.caught_at);
           if (exists) { skipped++; continue; }
         }
-        this.db.run(`INSERT INTO user_pokemon (user_id, pokemon_id, is_shiny, ball_name, caught_at, source) VALUES (?, ?, ?, ?, ?, 'import')`,
+        this.db.run(`INSERT INTO user_pokemon (user_id, pokemon_id, is_shiny, ball_name, caught_at, source, origin) VALUES (?, ?, ?, ?, ?, 'import', 'import')`,
           u.id, p.id, c.is_shiny ? 1 : 0, c.ball_name || null, c.caught_at || nowIso());
         mons++;
       }

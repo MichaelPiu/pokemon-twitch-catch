@@ -34,14 +34,15 @@ export function processAttempt(db, settings, input, rng = Math.random) {
     }
 
     let ball;
-    if (input.isDemo && input.ballTypeId) {
+    if ((input.isDemo || input.source === 'manual') && input.ballTypeId) {
+      // DEMO e sessione manuale: la Poké Ball è scelta dalla dashboard, nessuna ricompensa Twitch.
       ball = db.get('SELECT * FROM ball_types WHERE id = ?', input.ballTypeId);
     } else {
       ball = resolveBallForReward(db, input.rewardId);
       if (!ball) return { ignored: true }; // ricompensa non associata al gioco: non la tocchiamo
     }
 
-    const user = upsertUser(db, { ...input.user, isDemo: input.isDemo });
+    const user = upsertUser(db, { ...input.user, isDemo: input.isDemo, origin: input.user.origin });
     const source = input.isDemo ? 'demo' : (input.source || 'eventsub');
     const reject = (reason, extra = {}) => {
       const r = db.run(
@@ -55,7 +56,7 @@ export function processAttempt(db, settings, input, rng = Math.random) {
 
     if (!input.accepting?.ok) return reject(input.accepting?.reason || 'offline');
     if (ball?.unmapped) return reject('reward_unmapped');
-    if (!ball || !ball.enabled || (!input.isDemo && !ball.reward_enabled)) return reject('ball_disabled');
+    if (!ball || !ball.enabled || (!input.isDemo && input.source !== 'manual' && !ball.reward_enabled)) return reject('ball_disabled');
     if (isBanned(db, user.id)) return reject('banned');
 
     const spawnRow = db.get(
@@ -96,10 +97,12 @@ export function processAttempt(db, settings, input, rng = Math.random) {
       spawnEnded = 'caught';
     }
     if (caught) {
+      // Origine dell'esemplare: diretta Twitch, sessione manuale o DEMO.
+      const origin = input.isDemo ? 'demo' : source === 'manual' ? 'manual' : 'twitch';
       const r = db.run(
-        `INSERT INTO user_pokemon (user_id, pokemon_id, is_shiny, is_demo, ball_type_id, ball_name, session_id, spawn_id, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'capture')`,
-        user.id, spawnRow.pokemon_id, spawnRow.is_shiny, input.isDemo ? 1 : 0, ball.id, ball.name, spawnRow.session_id, spawnRow.id);
+        `INSERT INTO user_pokemon (user_id, pokemon_id, is_shiny, is_demo, ball_type_id, ball_name, session_id, spawn_id, source, origin)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'capture', ?)`,
+        user.id, spawnRow.pokemon_id, spawnRow.is_shiny, input.isDemo ? 1 : 0, ball.id, ball.name, spawnRow.session_id, spawnRow.id, origin);
       userPokemonId = Number(r.lastInsertRowid);
     }
 

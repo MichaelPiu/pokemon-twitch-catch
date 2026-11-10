@@ -20,8 +20,13 @@ services:
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       # Hostname dedicato alla dashboard (consigliato), es. livecatch.lan
       ADMIN_HOSTS: ${ADMIN_HOSTS:-}
+      # Cartella dei backup di rete (facoltativa), vedi il volume qui sotto.
+      BACKUP_TARGET_ROOT: /backups-network
     volumes:
       - ./data:/data
+      # Backup automatici su una cartella di rete già montata sull'host (NFS/SMB),
+      # scrivibile dall'utente 1000. Togli il commento e adatta il percorso:
+      # - /mnt/nas/livecatch:/backups-network
     logging:
       driver: json-file
       options:
