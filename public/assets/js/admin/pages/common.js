@@ -43,6 +43,11 @@ export function twitchAuthNotices(st) {
   const out = [];
   const b = st.authErrors?.broadcaster;
   const bot = st.authErrors?.bot;
+  const u = st.credentialsUnreadable;
+  if (u) out.push(h('div', { class: 'notice warn', style: { marginBottom: '10px' } },
+    h('b', {}, '🔑 Twitch scollegato: credenziali non leggibili con la chiave di questa installazione. '),
+    'Succede dopo il ripristino di un backup su un altro server (la chiave secret.key non è nei backup). Il gioco in modalità manuale funziona; per le dirette vai su ',
+    h('a', { href: '#/twitch' }, 'Twitch'), u.clientSecret ? ', inserisci di nuovo il Client Secret' : '', ' e collega di nuovo l\'account', u.bot && !u.broadcaster ? ' bot' : '', '.'));
   if (b) out.push(h('div', { class: 'notice err', style: { marginBottom: '10px' } },
     h('b', {}, '🔑 Autorizzazione dell\'account del canale non più valida. '),
     'Twitch ha rifiutato il token (revocato, password cambiata o app scollegata). Vai su ', h('a', { href: '#/twitch' }, 'Twitch'),

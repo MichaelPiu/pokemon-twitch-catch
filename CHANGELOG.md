@@ -19,8 +19,15 @@ Sviluppata nel ramo `feature/leaderboard` (basato su `feature/manual-backup-poke
 - Hall of Fame permanente con filtri; Stream Recap salvato alla chiusura di ogni sessione Twitch e manuale.
 - Registro operazioni: congelamenti, sblocchi, mostra/nascondi, regole, comandi, rinomine, rigenerazione dei riepiloghi.
 
+### Correzione: backup ripristinato su un'altra installazione
+- Difetto presente anche nella 1.0.0-rc.3. Le credenziali Twitch sono cifrate con `secret.key`, che non è nei backup. Ripristinando un backup su un'installazione nuova (Umbrel reinstallato, nuovo server) la decifratura andava in errore: il ripristino rispondeva 500 pur avendo sostituito i dati, Panoramica, Twitch e Sistema rispondevano 500 e la modalità manuale non partiva.
+- Ora le credenziali non leggibili con la chiave attuale sono trattate come assenti: Twitch risulta scollegato, con un avviso in Panoramica e nella pagina Twitch che spiega di reinserire il Client Secret e ricollegare gli account. Dashboard e modalità manuale funzionano.
+- Le credenziali cifrate originali restano intatte nel database finché un nuovo collegamento riuscito non le sostituisce. Formato dei backup invariato; `secret.key` resta esclusa.
+
 ### Test
-- `test/leaderboard.test.js`: 30 test (i 28 casi richiesti, più catture annullate e rinomina). Suite completa: 247/247 su Node 24.22.2 e 26.13.0.
+- `test/leaderboard.test.js`: 30 test (i 28 casi richiesti, più catture annullate e rinomina).
+- `test/credentials-key.test.js`: 3 test sul ripristino con una `secret.key` diversa (backup di rete e locale, HTTP 200, pagine, modalità manuale, avviso, conservazione delle credenziali, ricollegamento).
+- Suite completa: 250/250 su Node 24.22.2 e 26.13.0.
 - `test/network-backup.test.js`: le verifiche "schema invariato" usano la versione corrente invece del numero 4; il backup costruito per far fallire la migrazione toglie le righe di migrazione dalla 4 in su (prima solo la 4).
 
 ## Non pubblicata — Modalità manuale, backup di rete e modifica del Pokédex

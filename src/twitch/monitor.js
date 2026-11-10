@@ -503,6 +503,9 @@ export class TwitchMonitor {
       reconcile: this.reconciler.last,
       rewardsPause: { autoPause: !!this.gameSettings.get('rewards').autoPause, desiredPaused: this.desiredPaused(), last: this.lastPauseSync, ...this.rewardsAtRisk() },
       authErrors: { broadcaster: this.creds.authError('broadcaster'), bot: this.creds.authError('bot') },
+      // Credenziali cifrate con un'altra secret.key (es. backup ripristinato su
+      // un'altra installazione): Twitch risulta scollegato finché non lo ricolleghi.
+      credentialsUnreadable: this.creds.unreadable(),
     };
   }
 }

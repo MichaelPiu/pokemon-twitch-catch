@@ -673,12 +673,18 @@ Come funziona:
 
 Il ripristino conserva la sessione di accesso corrente e le impostazioni dei backup di rete; è bloccato durante una diretta ed è registrato nel registro delle modifiche.
 
-Se ripristini su un'installazione nuova, i token Twitch salvati nel backup sono cifrati con la vecchia `secret.key`: ricopia anche quel file oppure ricollega gli account Twitch (2 minuti).
+Se ripristini su un'installazione nuova (Umbrel reinstallato, disco cambiato, altro server), le credenziali Twitch del backup sono cifrate con la vecchia `secret.key`, che per sicurezza non è nei backup:
+- il ripristino riesce e i dati di gioco tornano tutti;
+- Twitch risulta **scollegato**, con l'avviso *credenziali non leggibili con la chiave di questa installazione* in Panoramica e nella pagina Twitch;
+- dashboard e modalità manuale funzionano normalmente;
+- per le dirette, in *Gestione Twitch* reinserisci il Client Secret e collega di nuovo gli account (2 minuti). Le vecchie credenziali cifrate restano nel database finché il nuovo collegamento non riesce; poi vengono sostituite.
+
+In alternativa, prima di avviare l'app ricopia la vecchia `secret.key` nella cartella dati: le credenziali tornano leggibili senza ricollegare nulla.
 
 ### Precauzioni per non perdere i dati
 
 - Tieni attivi sia i backup locali (`/data/backups`) sia quelli di rete: proteggono da guasti diversi.
-- Conserva a parte una copia di `secret.key` (`scripts/backup-volume.sh`): senza quella le credenziali Twitch di un backup vanno ricollegate.
+- Conserva a parte una copia di `secret.key` (`scripts/backup-volume.sh`): senza quella, dopo un ripristino su un'altra installazione, gli account Twitch vanno ricollegati.
 - Prima di un aggiornamento crea un backup manuale e scaricalo; l'app crea comunque il backup `pre-migration` e, con l'opzione attiva, il backup di rete `pre-update`.
 - Non copiare a mano il file del database con l'app in esecuzione (WAL): usa i backup della dashboard.
 - Dopo aver configurato la cartella di rete, premi **Verifica** su un backup almeno una volta: controlla checksum e integrità senza modificare nulla.
@@ -793,6 +799,7 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - token davvero revocato (rinnovo rifiutato con 400): procedura di revoca;
   - recupero automatico e rinnovo del token deduplicato.
 - **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
+- **Ripristino con un'altra `secret.key`** (`test/credentials-key.test.js`): backup di rete e locale ripristinati su un'installazione nuova (HTTP 200), Panoramica, Twitch e Sistema funzionanti, modalità manuale, avviso Twitch scollegato, credenziali cifrate originali intatte fino al nuovo collegamento, ricollegamento e reinserimento del Client Secret.
 - **Classifiche** (`test/leaderboard.test.js`): classifiche catture e punti, bonus rarità e shiny, punteggi immutabili e regole versionate, identità Twitch (User ID, cambio nickname) e locale, separazione Twitch/MANUAL, esclusione DEMO e modifiche del Pokédex, nessun doppio conteggio, catture annullate, `!leaderboard` autorizzato e rifiutato, attivazione da dashboard e da comando, nascondi, persistenza dopo il riavvio, congelamento, sblocco, istantanee immutabili, rinomina, aggiornamento WebSocket, overlay (DOM di prova), classifica finale persistente, Hall of Fame, Stream Recap, backup e ripristino, migrazione dallo schema v4.
 - **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):
   - preset, validazione, importazione ed esportazione, persistenza e migrazione;

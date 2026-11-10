@@ -29,6 +29,10 @@ export async function twitch({ el }) {
                 await act(() => del(`/api/admin/twitch/auth/${role}`), 'Account scollegato'); load();
               } }, 'Scollega')))
           : h('div', {},
+            t.unreadable ? h('div', { class: 'notice warn', style: { marginBottom: '8px' } },
+              '🔑 Le credenziali salvate', t.login ? [' per ', h('b', {}, t.login)] : '',
+              ' non sono leggibili con la chiave di questa installazione (per esempio dopo il ripristino di un backup su un altro server): l\'account risulta scollegato. ',
+              'Collegalo di nuovo qui sotto: le vecchie credenziali restano salvate finché il nuovo collegamento non riesce.') : null,
             h('p', { class: 'muted' }, role === 'bot'
               ? 'Facoltativo: un secondo account Twitch che scrive le risposte in chat. Se non lo colleghi, risponde l\'account del canale.'
               : 'Collega l\'account Twitch del TUO canale (quello che trasmette). Serve per rilevare le dirette, ricevere le riscossioni dei punti canale e leggere la chat.'),
@@ -86,7 +90,7 @@ export async function twitch({ el }) {
           h('li', {}, 'Apri l\'app creata, copia il ', h('b', {}, 'Client ID'), ', poi clicca ', h('b', {}, 'Nuovo segreto'), ' e copia il ', h('b', {}, 'Client Secret'), '.')),
         h('div', { class: 'form', style: { marginTop: '10px' } },
           h('label', { class: 'field' }, 'Client ID', h('input', { value: app.clientId, autocomplete: 'off', oninput: (e) => { app.clientId = e.target.value.trim(); } })),
-          h('label', { class: 'field' }, `Client Secret ${c.clientSecretSet ? '(già salvato — lascia vuoto per non cambiarlo)' : ''}`,
+          h('label', { class: 'field' }, `Client Secret ${c.clientSecretSet ? '(già salvato — lascia vuoto per non cambiarlo)' : c.clientSecretUnreadable ? '(salvato con la chiave di un\'altra installazione: inseriscilo di nuovo)' : ''}`,
             h('input', { type: 'password', autocomplete: 'new-password', placeholder: c.clientSecretSet ? '••••••••' : '', oninput: (e) => { app.clientSecret = e.target.value.trim(); } }))),
         h('div', { class: 'row end', style: { marginTop: '10px' } }, h('button', { class: 'btn primary', onclick: async () => {
           if (c.clientId && app.clientId !== c.clientId && !await confirmDialog('Cambiando Client ID gli account collegati verranno scollegati. Continuare?')) return;
