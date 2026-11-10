@@ -23,6 +23,7 @@ const NAV = [
   ['twitch', 'twitch', 'Gestione Twitch', 'Account, connessione, ricompense ed eventi'],
   ['commands', 'chat', 'Comandi Chat', 'Risposte, cooldown e anti-spam dei comandi'],
   ['overlay', 'monitor', 'Overlay Designer', 'Temi, editor visuale, anteprima e simulatore dell\'overlay per OBS'],
+  ['audio', 'volume', 'Audio OBS', 'Effetti sonori di spawn e cattura per una Browser Source dedicata di OBS'],
   ['sessions', 'calendar', 'Storico Dirette', 'Tutte le sessioni LIVE con il loro dettaglio'],
   ['system', 'database', 'Backup e Sistema', 'Backup locali e su cartella di rete, ripristino, log e stato del servizio'],
   ['settings', 'settings', 'Impostazioni', 'Account, pagine pubbliche e modalità DEMO'],

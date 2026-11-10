@@ -1,6 +1,7 @@
 // Hub WebSocket: canale "overlay" (pubblico, sola lettura, accessibile da OBS da
-// qualsiasi origine) e canale "admin" (sessione valida + controllo Host/Origin,
-// delegati ad authorizeAdmin).
+// qualsiasi origine), canale "audio" (pubblico, sola lettura: solo gli effetti
+// sonori per la Browser Source /overlay/audio) e canale "admin" (sessione
+// valida + controllo Host/Origin, delegati ad authorizeAdmin).
 import { WebSocketServer } from 'ws';
 
 const STATUS_TEXT = { 400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 421: 'Misdirected Request', 503: 'Service Unavailable' };
@@ -26,8 +27,8 @@ export class WsHub {
     this.overlayLimits = { ...OVERLAY_LIMITS, ...overlayLimits };
     this.rejected = { overlayLimit: 0, malformed: 0 };
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
-    this.clients = { overlay: new Set(), admin: new Set() };
-    this.snapshotProviders = { overlay: null, admin: null };
+    this.clients = { overlay: new Set(), audio: new Set(), admin: new Set() };
+    this.snapshotProviders = { overlay: null, audio: null, admin: null };
     this.heartbeat = setInterval(() => this.ping(), 30000);
     this.heartbeat.unref?.();
   }
@@ -50,17 +51,18 @@ export class WsHub {
     const url = new URL(req.url, 'http://x');
     let channel = null;
     let ip = '';
-    if (url.pathname === '/ws/overlay') {
-      channel = 'overlay';
+    if (url.pathname === '/ws/overlay' || url.pathname === '/ws/audio') {
+      // Canali pubblici: stessi limiti, conteggiati separatamente.
+      channel = url.pathname === '/ws/audio' ? 'audio' : 'overlay';
       ip = this.clientIp(req);
       const { max, perIp } = this.overlayLimits;
-      const set = this.clients.overlay;
+      const set = this.clients[channel];
       let same = 0;
       for (const ws of set) if (ws.clientIp === ip) same++;
       if (set.size >= max || same >= perIp) {
         this.rejected.overlayLimit++;
         if (this.rejected.overlayLimit === 1 || this.rejected.overlayLimit % 100 === 0) {
-          this.log?.warn?.('Connessione overlay rifiutata: limite raggiunto', { total: set.size, fromIp: same, max, perIp, rejected: this.rejected.overlayLimit });
+          this.log?.warn?.('Connessione overlay rifiutata: limite raggiunto', { channel, total: set.size, fromIp: same, max, perIp, rejected: this.rejected.overlayLimit });
         }
         return reject(socket, 503);
       }
@@ -95,6 +97,7 @@ export class WsHub {
   }
 
   overlay(type, data) { this.broadcast('overlay', type, data); }
+  audio(type, data) { this.broadcast('audio', type, data); }
   admin(type, data) { this.broadcast('admin', type, data); }
 
   ping() {
@@ -107,7 +110,7 @@ export class WsHub {
     }
   }
 
-  counts() { return { overlay: this.clients.overlay.size, admin: this.clients.admin.size }; }
+  counts() { return { overlay: this.clients.overlay.size, audio: this.clients.audio.size, admin: this.clients.admin.size }; }
 
   close() {
     clearInterval(this.heartbeat);

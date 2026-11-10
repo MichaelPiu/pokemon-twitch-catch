@@ -37,11 +37,14 @@ import { ThemeStore } from './overlay/themes.js';
 import { OverlaySimulator } from './overlay/simulator.js';
 import { LeaderboardService } from './leaderboard/leaderboard.js';
 import { registerLeaderboardRoutes } from './api/leaderboard.js';
+import { AudioService, AUDIO_TYPES } from './audio/audio.js';
+import { registerAudioRoutes } from './api/audio.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.json': 'application/json',
   '.woff2': 'font/woff2', '.webp': 'image/webp',
+  ...AUDIO_TYPES,
 };
 
 export class App {
@@ -57,7 +60,7 @@ export class App {
 
   async init() {
     const c = this.config;
-    for (const d of [c.dataDir, c.imagesDir, c.backupsDir, c.logsDir]) mkdirSync(d, { recursive: true });
+    for (const d of [c.dataDir, c.imagesDir, c.backupsDir, c.logsDir, c.audioDir]) mkdirSync(d, { recursive: true });
 
     this.db = new Database(c.dbPath);
     // Database di una versione più recente (es. dopo un ritorno a una versione
@@ -127,6 +130,10 @@ export class App {
     this.engine.sessions.onClosed = (s) => this.leaderboard.onSessionClosed(s);
     this.engine.on('attempt', (res) => { if (res?.leaderboardEvent) this.leaderboard.onCapture(res.leaderboardEvent); });
     this.engine.on('revoked', ({ sessionId }) => this.leaderboard.changed(sessionId));
+    // Effetti sonori per OBS: stessi eventi del motore, inviati solo al canale "audio".
+    this.audio = new AudioService({ dir: c.audioDir, db: this.db, settings: this.adminSettings, hub: this.hub, log: this.logger.child('audio') });
+    this.engine.on('spawn', (sp) => this.audio.onSpawn(sp));
+    this.engine.on('attempt', (res) => this.audio.onAttempt(res));
     this.engine.recoverAfterRestart();
     this.commands = new CommandHandler({ db: this.db, commandGlobals: this.gameSettings, log: this.logger.child('commands'), leaderboard: this.leaderboard });
 
@@ -156,6 +163,7 @@ export class App {
     this.engine.on('status', () => { if (this.engine.mode) this.simulator.purge(this.engine.mode === 'demo' ? 'DEMO' : 'diretta'); });
     this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.themes.effective(), leaderboard: this.leaderboard.overlayPayload() }));
     this.hub.setSnapshot('admin', () => this.liveStatus());
+    this.hub.setSnapshot('audio', () => this.audio.snapshot());
     this.engine.on('status', () => this.hub.admin('status', this.liveStatus()));
     // Aggiorna dashboard e barra superiore anche per i cambi di stato Twitch (non solo del motore).
     this.sm.on('transition', () => setImmediate(() => { if (this.db?.db) this.hub.admin('status', this.liveStatus()); }));
@@ -174,6 +182,7 @@ export class App {
     registerBackupRoutes(this);
     registerPokedexRoutes(this);
     registerLeaderboardRoutes(this);
+    registerAudioRoutes(this);
 
     if (this.timers) { this.backups.startScheduler(); this.networkBackups.startScheduler(); }
     this.pruneTimer = setInterval(() => this.prune(), 6 * 3600 * 1000);
@@ -313,6 +322,15 @@ export class App {
       return page('admin/index.html', { noStore: true, frame: 'DENY' });
     }
     if (path === '/overlay' || path === '/overlay/') return page('overlay/index.html', { noStore: true, frame: null });
+    // Browser Source audio di OBS (nessun elemento visibile; ?debug=1 per la diagnostica).
+    if (path === '/overlay/audio' || path === '/overlay/audio/') return page('overlay/audio.html', { noStore: true, frame: null });
+    // File audio: solo quelli della whitelist (ID opaco), mai un percorso.
+    if (path.startsWith('/audio/')) {
+      const m = /^\/audio\/([a-f0-9]{16})\.([a-z0-9]{2,4})$/.exec(path);
+      const f = m ? this.audio.byId(m[1]) : null;
+      if (!f || f.ext !== m[2]) return this.notFound(res);
+      return this.sendFile(req, res, f.full, { cache: 'public, max-age=86400' });
+    }
     if (path === '/leaderboard') return pub.leaderboard ? page('leaderboard.html') : page('disabled.html', { status: 404 });
     if (/^\/pokedex\/[A-Za-z0-9_]{1,25}\/?$/.test(path)) return pub.pokedex ? page('pokedex.html') : page('disabled.html', { status: 404 });
     if (path.startsWith('/images/')) {

@@ -58,6 +58,20 @@ export const GAME_DEFAULTS = {
   },
 };
 
+// Effetti sonori per OBS (Browser Source /overlay/audio): vedi src/audio/audio.js.
+export const AUDIO_DEFAULTS = {
+  enabled: true,
+  volume: 70, // 0-100
+  spawnEnabled: true,
+  captureEnabled: true,
+  spawnMode: 'random', // random: a caso dalla lista (senza ripetere l'ultimo) · fixed: sempre lo stesso file
+  spawnFiles: null, // null = riconoscimento automatico per nome; altrimenti percorsi relativi
+  spawnFixed: null,
+  captureFile: null, // null = riconoscimento automatico per nome
+  includeDemo: false, // suoni anche durante la modalità DEMO
+  maxDurationS: 10, // taglio con dissolvenza (0 = brano intero)
+};
+
 export const ADMIN_DEFAULTS = {
   publicPages: { landing: true, pokedex: true, leaderboard: true },
   backup: { autoEnabled: true, hour: 4, keep: 14 },
@@ -65,6 +79,7 @@ export const ADMIN_DEFAULTS = {
   networkBackup: { enabled: false, subdir: 'livecatch', frequency: 'daily', hour: 3, keep: 14, beforeUpdate: true },
   twitch: { channelLogin: '', useSeparateBot: false },
   demo: { enabled: false },
+  audio: { ...AUDIO_DEFAULTS },
   security: {
     adminHosts: [], // hostname dedicati alla dashboard (vuoto = qualsiasi host)
     bindSessionIp: true, // la sessione vale solo dall'indirizzo IP del login

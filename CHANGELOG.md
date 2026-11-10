@@ -1,5 +1,23 @@
 # Changelog
 
+## Non pubblicata — Effetti sonori per OBS
+
+Sviluppata nel ramo `feature/leaderboard`. **Non è una release**: nessun tag, nessuna immagine, store invariato.
+
+### Novità
+- Suono a ogni nuovo spawn (casuale dalla lista senza ripetere l'ultimo, oppure fisso) e musica di conferma a ogni cattura riuscita.
+- Browser Source dedicata `/overlay/audio` (HTML5 Audio, nessun elemento visibile, diagnostica con `?debug=1`, sblocco dell'autoplay, riconnessione automatica). Canale WebSocket separato `/ws/audio`: dashboard e overlay grafico non ricevono né riproducono audio.
+- Sezione **Audio OBS** della dashboard: attivazione generale, spawn e cattura, volume, durata massima con dissolvenza, DEMO facoltativa, modalità casuale o fissa, scelta dei file, elenco dei file disponibili, prova in OBS, numero di sorgenti collegate.
+- File audio dell'utente nella cartella dati `/data/audio` (mai nel repository o nell'immagine): whitelist costruita leggendo la cartella (MP3, OGG, WAV; niente collegamenti simbolici, file nascosti o percorsi arbitrari; ID opaco nell'URL). Riconoscimento automatico per nome, anche con lettere accentate scomposte.
+- Eventi legati al motore di gioco (eventi `spawn` e `attempt` già esistenti): un ID univoco per spawn e per tentativo, deduplicazione nel server e nella Browser Source, nessun evento passato dopo una riconnessione, eventi in ritardo oltre 10 s scartati secondo l'ora del server. Nessun suono per lanci falliti o rifiutati, riscatti duplicati, catture già annullate, DEMO (salvo opzione). Un errore audio non blocca mai il gioco.
+- Impostazioni nel database (`admin_settings.audio`), registrate nel registro operazioni.
+
+### Invariato
+- Probabilità di cattura, motore di gioco, Twitch e Channel Points, classifiche, formato dei backup.
+
+### Test
+- `test/audio.test.js`: 13 test. Suite completa: 263/263 su Node 24.22.2 e 26.13.0.
+
 ## Non pubblicata — Classifiche, Hall of Fame e Stream Recap
 
 Sviluppata nel ramo `feature/leaderboard` (basato su `feature/manual-backup-pokedex`). **Non è una release**: nessun tag, nessuna immagine, store invariato (resta la 1.0.0-rc.3).

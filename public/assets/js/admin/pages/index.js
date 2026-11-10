@@ -14,5 +14,6 @@ import { settings } from './settings.js';
 import { game } from './game.js';
 import { pokedex } from './pokedex.js';
 import { leaderboard } from './leaderboard.js';
+import { audio } from './audio.js';
 
-export const pages = { overview, game, stats, sessions, users, pokedex, leaderboard, spawn, pokemon, balls, commands, overlay, twitch, demo, system, settings };
+export const pages = { overview, game, stats, sessions, users, pokedex, leaderboard, spawn, pokemon, balls, commands, overlay, audio, twitch, demo, system, settings };

@@ -21,6 +21,8 @@ export function loadConfig(env = process.env) {
     dataDir,
     dbPath: resolve(dataDir, 'db', 'livecatch.sqlite'),
     imagesDir: resolve(dataDir, 'images'),
+    // Effetti sonori per OBS (file dell'utente, mai nell'immagine): vedi src/audio/audio.js.
+    audioDir: resolve(dataDir, 'audio'),
     backupsDir: resolve(dataDir, 'backups'),
     logsDir: resolve(dataDir, 'logs'),
     // Cartella di rete per i backup: un volume montato nel container (su umbrelOS 2.x

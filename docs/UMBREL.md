@@ -198,6 +198,23 @@ Da provare solo con un'immagine compilata da questo ramo (Metodo B), su un'insta
 6. *Congela risultati*, poi un'altra cattura: la classifica non cambia; *Sblocca* chiede la motivazione.
 7. Crea un backup di rete e ripristinalo: classifiche e risultati congelati tornano come nel backup.
 
+### Audio OBS (versione in sviluppo, non pubblicata)
+
+1. Copia i tuoi file audio (MP3, OGG o WAV) in `~/umbrel/app-data/piu-live-catch/data/audio/`, per esempio dal Mac:
+   ```bash
+   scp -r "Cartella dei miei suoni" umbrel@umbrel.local:umbrel/app-data/piu-live-catch/data/audio/
+   ```
+   Se la cartella non è scrivibile dall'utente `umbrel`, usa `sudo` sul server e poi `sudo chown -R 1000:1000 ~/umbrel/app-data/piu-live-catch/data/audio`.
+2. *Audio OBS*: i file compaiono nell'elenco; controlla la musica di cattura e la lista dei suoni di spawn.
+3. OBS: nuova sorgente Browser `http://IP-UMBREL:8788/overlay/audio`, 10 × 10, *Controlla l'audio tramite OBS* attivo. La dashboard deve indicare *1 sorgente audio collegata*.
+4. *Prova suono spawn* e *Prova musica cattura*: devono suonare in OBS e non nel browser della dashboard.
+5. Sessione manuale: *Genera Pokémon* → un suono; lancio riuscito → la musica di cattura; lancio fallito → niente.
+6. Chiudi OBS, genera qualche spawn, riapri OBS: nessun suono arretrato.
+7. Riavvia l'app: le impostazioni audio restano.
+8. Diretta di prova: un riscatto riuscito suona una volta sola.
+
+I file audio restano nella cartella dati dopo gli aggiornamenti, ma non sono nei backup dell'app: tienine una copia a parte.
+
 ## Tornare a una versione precedente
 
 La procedura completa è nel README (*Aggiornamento → Tornare a una versione precedente*). In breve, per Umbrel:
