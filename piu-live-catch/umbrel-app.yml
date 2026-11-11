@@ -2,7 +2,7 @@ manifestVersion: 1
 id: piu-live-catch
 category: social
 name: Live Catch
-version: "1.0.1"
+version: "1.0.2"
 tagline: Gioco di cattura per Twitch con i punti canale
 description: >-
   Live Catch è un gioco interattivo per la tua diretta Twitch.
@@ -17,7 +17,7 @@ description: >-
 
   Progetto amatoriale non ufficiale: Pokémon e i relativi marchi appartengono ai rispettivi
   titolari (Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company). Nessuna affiliazione.
-releaseNotes: "Novità: messaggi automatici in chat inviati dal bot Twitch già collegato, con testi personalizzabili dalla nuova sezione Messaggi Twitch della dashboard (spawn, catture riuscite, spawn e catture shiny, catture leggendarie o mitiche, inizio e fine sessione), anteprima, invio di prova e limiti antispam. I messaggi sono spenti dopo l'aggiornamento: si attivano dalla dashboard. Nessuna modifica al database (schema v5 invariato), ai backup, alle probabilità di cattura, alle classifiche o all'audio OBS; dati e impostazioni restano."
+releaseNotes: "Novità: Overlay rotante nella stessa sorgente OBS /overlay (classifica Top 10, ultime catture, shiny, obiettivi della community, Statistiche Community ed evento in corso, con ordine, durate, transizioni, blocco e anteprima dalla dashboard); nuova sezione Statistiche Community (Pokémon più catturato, spettatore più fortunato, record e altro, per sessione, ultima diretta, 7 e 30 giorni o storico); nuova sezione Eventi automatici (Evento Leggendario, Bonus Shiny, Pokémon del giorno ed Evento Community) con annunci in chat tramite Messaggi Twitch ed eventi nello Stream Recap. Tutto è spento dopo l'aggiornamento: si attiva dalla dashboard. I bonus degli eventi sono temporanei e valgono solo per i Pokémon che appaiono: probabilità di cattura, punteggi delle classifiche e audio OBS invariati. Nessuna modifica al database (schema v5), dati e impostazioni restano."
 developer: MichaelPiu
 website: https://github.com/MichaelPiu/piu-umbrel-app-store
 dependencies: []

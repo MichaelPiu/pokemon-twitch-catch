@@ -13,7 +13,7 @@ services:
   web:
     # Nello store pubblico l'immagine è fissata anche per digest (tag@sha256:…),
     # scritto da scripts/publish-store.sh dopo la build del rilascio.
-    image: ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.1
+    image: ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.2
     restart: on-failure
     init: true
     user: "1000:1000"

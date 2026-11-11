@@ -1,6 +1,14 @@
 # Changelog
 
-## Non pubblicato
+## 1.0.2 — Overlay rotante, Statistiche Community ed Eventi automatici (versione di test)
+
+Prerelease di test sopra la 1.0.1: tag `v1.0.2`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.2`. Il codice dell'applicazione è quello del commit `37dba0b`.
+
+### Aggiornamento dalla 1.0.1
+- Nessuna migrazione: schema del database v5 e formato dei backup invariati. Database, credenziali Twitch, Pokédex, classifiche, giocatori, recap, audio, Messaggi Twitch, overlay e backup restano.
+- Dopo l'aggiornamento Overlay rotante ed Eventi automatici sono spenti; si attivano dalla dashboard.
+- Ritorno alla 1.0.1 possibile senza ripristino: la 1.0.1 ignora le impostazioni nuove, che restano salvate.
+- Un evento attivo al momento dell'aggiornamento (o di un riavvio) non mantiene il bonus: al riavvio il gioco è fermo e l'evento viene chiuso o sospeso secondo la regola scelta.
 
 ### Overlay rotante, Statistiche Community ed Eventi automatici
 

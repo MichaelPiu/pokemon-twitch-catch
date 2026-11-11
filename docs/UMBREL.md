@@ -47,6 +47,21 @@ Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10
 
 Dati: `~/umbrel/app-data/piu-live-catch/data` (database, immagini, backup, log, `secret.key`), inclusi nei backup di Umbrel.
 
+## Aggiornare dalla 1.0.1 alla 1.0.2 (versione di test)
+
+La 1.0.2 aggiunge Overlay rotante, Statistiche Community ed Eventi automatici. **Nessuna migrazione**: lo schema resta v5, il formato dei backup non cambia e le funzioni nuove restano spente finché non le attivi. Nessuna nuova sorgente OBS e nessuna nuova autorizzazione Twitch.
+
+> ⚠️ **Non disinstallare** l'app per aggiornarla: su Umbrel la disinstallazione cancella anche `app-data`.
+
+1. Dalla dashboard: *Backup & Sistema → Crea backup ora* e scarica il file sul PC (consigliato).
+2. Se c'è una diretta in corso, aspetta che finisca (l'aggiornamento riavvia l'app).
+3. Umbrel → **App Store** → store **Piu** → **Live Catch**: compare **Update** con la versione `1.0.2`. Se non compare, attendi qualche minuto (Umbrel rilegge gli store della community periodicamente) e riapri l'App Store. Premi **Update**.
+4. Verifica: `http://umbrel.local:8788/health` → `"status":"ok"`; *Backup & Sistema* → versione **1.0.2**, **schema DB v5**; Pokédex, classifiche, recap, audio, Messaggi Twitch, backup e Twitch come prima; nel menu compaiono **Statistiche Community**, **Eventi automatici** e **Overlay rotante**.
+5. In OBS la sorgente resta `http://IP-UMBREL:8788/overlay`: premi *Aggiorna la cache della pagina corrente* per caricare il codice nuovo.
+6. Collaudo: [Overlay rotante, Statistiche Community ed Eventi automatici](#overlay-rotante-statistiche-community-ed-eventi-automatici-dalla-102-versione-di-test).
+
+Ritorno alla 1.0.1: stesso schema, quindi nessun ripristino necessario; la 1.0.1 ignora le impostazioni nuove (restano salvate).
+
 ## Aggiornare dalla 1.0.0 alla 1.0.1 (versione di test)
 
 La 1.0.1 aggiunge solo i messaggi automatici in chat. **Nessuna migrazione**: lo schema resta v5, il formato dei backup non cambia e i messaggi restano spenti finché non li attivi.
@@ -260,7 +275,7 @@ Nessuna migrazione del database e nessuna nuova autorizzazione Twitch: si usa il
 5. Scollega la rete o ferma Twitch (EventSub non collegato): il riquadro passa a *non partono*, il gioco continua e al ritorno non arrivano messaggi arretrati.
 6. Riavvia l'app: le impostazioni restano.
 
-### Overlay rotante, Statistiche Community ed Eventi automatici (versione successiva alla 1.0.1, non ancora pubblicata)
+### Overlay rotante, Statistiche Community ed Eventi automatici (dalla 1.0.2, versione di test)
 
 Nessuna migrazione del database (schema v5), nessuna nuova sorgente OBS, nessuna nuova autorizzazione Twitch. Dopo l'aggiornamento tutto resta **spento**.
 
