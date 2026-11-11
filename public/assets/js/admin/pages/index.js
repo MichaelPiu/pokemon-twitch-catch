@@ -16,5 +16,8 @@ import { pokedex } from './pokedex.js';
 import { leaderboard } from './leaderboard.js';
 import { audio } from './audio.js';
 import { messages } from './messages.js';
+import { community } from './community.js';
+import { events } from './events.js';
+import { rotation } from './rotation.js';
 
-export const pages = { overview, game, stats, sessions, users, pokedex, leaderboard, spawn, pokemon, balls, commands, messages, overlay, audio, twitch, demo, system, settings };
+export const pages = { overview, game, stats, community, sessions, users, pokedex, leaderboard, spawn, pokemon, balls, commands, messages, events, overlay, rotation, audio, twitch, demo, system, settings };

@@ -18,7 +18,7 @@ export function registerPublicRoutes(app) {
     rarities: RARITY_LABELS,
   }), { public: true });
 
-  r.get('/api/public/overlay', () => ({ ...app.engine.overlaySnapshot(), settings: app.themes.effective(), rarities: RARITY_LABELS, leaderboard: app.leaderboard.overlayPayload() }), { public: true });
+  r.get('/api/public/overlay', () => ({ ...app.engine.overlaySnapshot(), settings: app.themes.effective(), rarities: RARITY_LABELS, leaderboard: app.leaderboard.overlayPayload(), rotation: app.rotation.payload(), events: app.events.overlayPayload() }), { public: true });
 
   r.get('/api/public/leaderboard', (ctx) => {
     if (!pages().leaderboard) throw new HttpError(404, 'Classifica non disponibile');

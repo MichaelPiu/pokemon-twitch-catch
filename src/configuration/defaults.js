@@ -87,6 +87,14 @@ export const CHAT_MESSAGE_DEFAULTS = {
     legendary_capture: { enabled: false, mode: 'fixed', fixedId: 'legendary-capture-1', cooldownS: 5 },
     session_start: { enabled: false, mode: 'fixed', fixedId: 'session-start-1', cooldownS: 60 },
     session_end: { enabled: false, mode: 'fixed', fixedId: 'session-end-1', cooldownS: 60 },
+    // Annunci degli Eventi automatici: partono solo se anche gli eventi sono attivi.
+    event_legendary_start: { enabled: true, mode: 'fixed', fixedId: 'event-legendary-1', cooldownS: 30 },
+    event_shiny_start: { enabled: true, mode: 'fixed', fixedId: 'event-shiny-1', cooldownS: 30 },
+    event_end: { enabled: true, mode: 'fixed', fixedId: 'event-end-1', cooldownS: 30 },
+    pokemon_of_day: { enabled: true, mode: 'fixed', fixedId: 'potd-1', cooldownS: 60 },
+    pokemon_of_day_capture: { enabled: true, mode: 'fixed', fixedId: 'potd-capture-1', cooldownS: 30 },
+    community_goal_start: { enabled: true, mode: 'fixed', fixedId: 'community-start-1', cooldownS: 30 },
+    community_goal_complete: { enabled: true, mode: 'fixed', fixedId: 'community-done-1', cooldownS: 30 },
   },
   messages: [
     { id: 'spawn-1', event: 'spawn', enabled: true, text: '🚨 ATTENZIONE CHAT! Un {pokemon} selvatico è apparso! Rarità: {rarity}!' },
@@ -96,6 +104,13 @@ export const CHAT_MESSAGE_DEFAULTS = {
     { id: 'legendary-capture-1', event: 'legendary_capture', enabled: true, text: '🏆 {user} ha catturato il {rarity} {pokemon}!' },
     { id: 'session-start-1', event: 'session_start', enabled: true, text: '🎮 Si parte! I Pokémon selvatici stanno per arrivare: tieni pronte le Poké Ball!' },
     { id: 'session-end-1', event: 'session_end', enabled: true, text: '👋 Sessione finita: {captures} catture su {spawns} Pokémon apparsi. Grazie a tutti!' },
+    { id: 'event-legendary-1', event: 'event_legendary_start', enabled: true, text: '🌟 EVENTO LEGGENDARIO! Per {duration} i Pokémon leggendari appaiono più spesso (×{boost})!' },
+    { id: 'event-shiny-1', event: 'event_shiny_start', enabled: true, text: '✨ BONUS SHINY! Per {duration} gli shiny sono {boost} volte più frequenti!' },
+    { id: 'event-end-1', event: 'event_end', enabled: true, text: '⏹️ {event} terminato: {captures} catture durante l\'evento. Grazie a tutti!' },
+    { id: 'potd-1', event: 'pokemon_of_day', enabled: true, text: '📅 Il Pokémon del giorno è {pokemon} ({rarity})! Chi lo cattura oggi entra nell\'albo del giorno.' },
+    { id: 'potd-capture-1', event: 'pokemon_of_day_capture', enabled: true, text: '📅 {user} ha catturato il Pokémon del giorno, {pokemon}!' },
+    { id: 'community-start-1', event: 'community_goal_start', enabled: true, text: '🤝 Nuovo obiettivo della community: {goal} catture tutti insieme! Premio: {reward}' },
+    { id: 'community-done-1', event: 'community_goal_complete', enabled: true, text: '🎉 Obiettivo raggiunto! La community ha fatto {goal} catture. {reward}' },
   ],
 };
 

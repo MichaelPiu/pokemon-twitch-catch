@@ -55,6 +55,7 @@ export class LeaderboardService extends EventEmitter {
     this.settings = new SettingsStore(db, 'leaderboard_settings', LEADERBOARD_DEFAULTS);
     this.pushTimer = null;
     this.stats = { unauthorized: 0, chatActions: 0 };
+    this.recapExtras = null; // (sessione) => eventi automatici della sessione, aggiunti allo Stream Recap
   }
 
   // --- Regole di punteggio -----------------------------------------------------------
@@ -315,8 +316,19 @@ export class LeaderboardService extends EventEmitter {
       leaderboardSource: v.source,
       frozen: v.session.frozen,
       rulesVersion: v.rulesVersion,
+      events: this.recapEvents(s),
       generatedAt: nowIso(),
     };
+  }
+
+  // Eventi automatici della sessione (Evento Leggendario, Bonus Shiny, obiettivi):
+  // un errore qui non deve impedire il salvataggio del riepilogo.
+  recapEvents(s) {
+    if (!this.recapExtras) return [];
+    try { return this.recapExtras(s) || []; } catch (e) {
+      this.log?.warn('Eventi della sessione non aggiunti al riepilogo', { message: e.message });
+      return [];
+    }
   }
 
   // Generato alla chiusura della sessione (e rigenerabile esplicitamente).

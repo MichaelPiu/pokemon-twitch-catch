@@ -9,6 +9,7 @@ const GROUPS = [
   ['spawn', 'Spawn'],
   ['capture', 'Catture'],
   ['session', 'Sessioni'],
+  ['events', 'Eventi automatici (annunci)'],
 ];
 const OUTCOME = { sent: 'inviato', skipped: 'non inviato', failed: 'errore' };
 

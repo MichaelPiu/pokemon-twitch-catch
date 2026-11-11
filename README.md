@@ -28,7 +28,7 @@ Live Catch è un gioco interattivo per la tua diretta Twitch che gira interament
 10. [Importazione dei Pokémon](#importazione-dei-pokémon)
 11. [Collegamento OBS](#collegamento-obs)
 12. [Configurazione della dashboard](#configurazione-della-dashboard)
-13. [Comandi chat](#comandi-chat) · [Messaggi automatici in chat](#messaggi-automatici-in-chat)
+13. [Comandi chat](#comandi-chat) · [Messaggi automatici in chat](#messaggi-automatici-in-chat) · [Overlay rotante, Statistiche Community ed Eventi automatici](#overlay-rotante-statistiche-community-ed-eventi-automatici)
 14. [Modalità manuale](#modalità-manuale-gioco-senza-twitch) · [Modifica del Pokédex](#modifica-manuale-del-pokédex) · [Classifiche, Hall of Fame e Stream Recap](#classifiche-hall-of-fame-e-stream-recap) · [Effetti sonori per OBS](#effetti-sonori-per-obs)
 15. [Backup](#backup) · [Ripristino](#ripristino) · [Aggiornamento](#aggiornamento)
 16. [Risoluzione problemi](#risoluzione-problemi)
@@ -51,7 +51,7 @@ Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/
 | Comandi | `!pokedex`, `!pokemon`, `!dex @utente`, `!ultimocatturato`, `!classifica`, `!help` — risposte, alias, cooldown, anti-spam, limite bot configurabili. |
 | Overlay OBS | `/overlay` trasparente, aggiornato via WebSocket, animazioni, coda notifiche, colori/posizione/scala configurabili, anteprima in dashboard. |
 | Statistiche | Per diretta, giornaliere, settimanali, mensili, complessive; Pokémon più apparsi/catturati/difficili, utenti più attivi, ball più usate, shiny. |
-| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Classifiche, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Messaggi Twitch, Overlay, Audio OBS, Twitch, DEMO, Backup & Sistema. |
+| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Classifiche, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Messaggi Twitch, Eventi automatici, Statistiche Community, Overlay, Overlay rotante, Audio OBS, Twitch, DEMO, Backup & Sistema. |
 | Sicurezza | Password scrypt, cambio password obbligatorio, sessioni HttpOnly/SameSite, CSRF, rate limiting, token Twitch cifrati AES-256-GCM, redazione dei segreti nei log. |
 | Backup | Giornaliero automatico con rotazione, manuale, download/upload, ripristino guidato con backup di sicurezza, esportazione/importazione JSON. |
 | Modalità manuale | Avvia il vero motore di gioco dalla dashboard con il canale OFFLINE (prove, OBS, giochi in locale): dati reali marcati MANUAL, sessioni distinte da quelle Twitch, la diretta ha sempre la priorità. |
@@ -59,6 +59,9 @@ Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/
 | Backup di rete | Backup automatici su una cartella di rete montata (NFS/SMB tramite Umbrel o volume Docker) con manifest e checksum, verifica della connessione, ritentativi, rotazione e ripristino guidato. |
 | Classifiche | Classifica catture e classifica punti per ogni sessione (Twitch o manuale), aggiornate in tempo reale; podio, vincitore, riepilogo e Hall of Fame nell'overlay OBS, visibili finché non li nascondi; risultati congelabili; comando `!leaderboard` per broadcaster e moderatori. |
 | Messaggi Twitch | Il bot annuncia in chat gli spawn, le catture riuscite e l'inizio/fine sessione con testi tuoi (fissi o a caso da un gruppo, con variabili come `{pokemon}` e `{user}`); spenti finché non li attivi, con limiti antispam. |
+| Overlay rotante | Nella stessa Browser Source `/overlay` si alternano classifica, ultime catture, shiny, obiettivi, Statistiche Community ed evento in corso; ordine, durate, transizioni e blocco dalla dashboard, schermate senza dati saltate. |
+| Statistiche Community | Pokémon più catturato (e Top 10), spettatore più fortunato con metrica spiegata, Pokémon più raro, allenatori con più catture e shiny, tipo preferito, record di sessione e sessione con più Leggendari, per sessione, ultima diretta, 7 e 30 giorni o storico. |
+| Eventi automatici | Evento Leggendario e Bonus Shiny (programmati o manuali, bonus temporanei solo sugli spawn), Pokémon del giorno ed Evento Community con barra di avanzamento e premio; annunci in chat dai Messaggi Twitch; tutto spento finché non lo attivi. |
 | Effetti sonori | Un suono casuale a ogni spawn e la musica di conferma a ogni cattura riuscita, riprodotti dalla stessa Browser Source dell'overlay (`/overlay`), solo dentro OBS; file audio tuoi, nella cartella dati. |
 | DEMO | Modalità di prova separata (utenti/sessioni marcati DEMO) che non tocca le statistiche reali e non è disponibile durante una diretta. |
 
@@ -460,6 +463,58 @@ Esempio: `🚨 ATTENZIONE CHAT! Un {pokemon} selvatico è apparso! Rarità: {rar
 - **Antispam**: intervallo minimo per ogni tipo di messaggio, limite di messaggi automatici al minuto (predefinito 6, massimo 20), un solo messaggio per spawn e per cattura, coda di 5 messaggi al massimo, messaggi più vecchi di 20 secondi scartati, pausa di 30 secondi se Twitch risponde "troppe richieste". Restano validi anche i limiti del bot impostati in *Comandi chat*.
 - **Sicurezza**: le variabili le sostituisce il server, con dati del gioco: il nome di chi cattura viene dall'identità Twitch registrata con il riscatto (o dal nome scritto dall'amministratore nella sessione manuale), mai dal testo della chat. I testi sono testo semplice su una riga (niente HTML o codice; `/` e `.` iniziali rimossi, così un messaggio non diventa un comando di chat), al massimo 300 caratteri per modello e 450 per messaggio. Solo l'amministratore può modificarli; le modifiche finiscono nel registro operazioni; i log degli errori non contengono token.
 - **Dati**: impostazioni nel database (`admin_settings.chatMessages`), quindi nei backup. Nessuna migrazione dello schema.
+
+## Overlay rotante, Statistiche Community ed Eventi automatici
+
+Tre funzioni collegate tra loro, **tutte spente** dopo l'aggiornamento. Nessuna nuova sorgente OBS, nessuna seconda connessione a Twitch, nessuna migrazione del database: le impostazioni stanno in `admin_settings` (`autoEvents`, `autoEventsState`, `communityStats`) e `overlay_settings` (`rotation`), quindi anche nei backup.
+
+### Overlay rotante (sezione *Overlay rotante*)
+
+Nella **stessa Browser Source `/overlay`** compare un pannello che alterna:
+
+| Schermata | Contenuto | Saltata se |
+|---|---|---|
+| Classifica | Top 10 della sessione in corso (o dell'ultima), punti e catture, primo evidenziato, frecce animate ai cambi di posizione | nessuna cattura |
+| Ultime catture | 5–10 catture con immagine, allenatore e orario; rare e shiny evidenziate | nessuna cattura |
+| Shiny | Ultimi shiny, chi li ha trovati, contatore della sessione e totale | nessuno shiny |
+| Obiettivi | Obiettivo della community (barra e percentuale, premio) e Pokémon del giorno | Eventi spenti |
+| Statistiche Community | Le curiosità principali per il periodo scelto | nessuna cattura nel periodo |
+| Evento attivo | Evento Leggendario o Bonus Shiny in corso, con bonus e orario di fine | nessun evento |
+
+- Dalla dashboard: attivazione, ordine (frecce), schermate attive, durata di ognuna, durata minima e massima (ogni durata viene tenuta nell'intervallo), transizione (dissolvenza, scorrimento, zoom, nessuna), posizione, **blocco** di una schermata (resta bloccata anche dopo un riavvio), *Schermata successiva* e **anteprima** con i dati attuali (non va agli overlay in OBS).
+- La rotazione la decide il **server** con un solo timer: tutte le sorgenti OBS mostrano la stessa schermata, una riconnessione o un riavvio ricevono lo stato attuale; nel browser non ci sono timer di rotazione da duplicare.
+- Le catture aggiornano la schermata visibile **in tempo reale** (WebSocket esistente) senza cambiarla.
+- Quando inizia un evento o si raggiunge un obiettivo, la sua schermata compare subito (disattivabile). Durante un evento in alto compare un badge con il conto alla rovescia.
+- **Audio**: i cambi di schermata viaggiano solo sul canale grafico dell'overlay; i suoni (canale audio separato) non vengono interrotti né ripetuti.
+- Se è visibile una schermata delle Classifiche (podio, vincitore, Hall of Fame…), il pannello rotante si fa da parte.
+
+### Statistiche Community (sezione *Statistiche Community*)
+
+Calcolate al momento dalle **catture valide** (`leaderboard_events`, la fonte delle classifiche: annullate escluse, DEMO mai incluse, catture storiche comprese). Nulla viene cancellato a fine diretta o con le classifiche.
+
+- **Periodi**: sessione corrente, ultima diretta Twitch, ultimi 7 giorni, ultimi 30 giorni, storico complessivo.
+- **Pokémon più catturato** con numero di catture, allenatori e Top 10.
+- **Spettatore più fortunato**, metrica scelta da te e spiegata accanto al risultato: *catture speciali* (Raro, Molto raro, Leggendario, Mitico o shiny), *shiny*, *Leggendari e Mitici*.
+- **Pokémon più raro catturato** (rarità, poi shiny, poi la cattura più vecchia), **allenatore con più catture**, **con più shiny**, **tipo più catturato** (un Pokémon a doppio tipo conta per entrambi), **totale catture**, **record di catture in una sessione**, **sessione con più Leggendari** (data, durata, allenatori).
+- **Parità**: a parità vince chi ci è arrivato prima e la parità viene sempre indicata. Gli allenatori bannati sono esclusi come nelle classifiche.
+
+### Eventi automatici (sezione *Eventi automatici*)
+
+| Evento | Come parte | Effetto |
+|---|---|---|
+| Evento Leggendario | ogni N minuti di gioco o ogni N catture, nei giorni e orari scelti; oppure con *Avvia* | peso delle rarità Leggendario e Mitico × moltiplicatore, per la durata scelta |
+| Bonus Shiny | programmato (ogni N minuti, giorni e orari) o con *Avvia* | probabilità shiny × moltiplicatore, per la durata scelta |
+| Pokémon del giorno | uno al giorno, scelto in modo ripetibile (stessa data → stesso Pokémon) o da te | evidenziato nell'overlay; annuncio in chat a inizio giornata e a ogni cattura |
+| Evento Community | obiettivo di N catture della community dal momento in cui lo avvii | barra di avanzamento; al traguardo annuncio, premio grafico nell'overlay e, se vuoi, un Evento Leggendario o Bonus Shiny; *Nuovo obiettivo* per ricominciare |
+
+Regole:
+- **Spenti per impostazione predefinita**: interruttore generale e uno per evento. Nessun evento parte senza la tua attivazione o il tuo clic su *Avvia* (con conferma).
+- **I bonus non toccano la probabilità di cattura** né le impostazioni salvate: valgono solo per la scelta del Pokémon che appare (rarità e shiny), vengono letti a ogni spawn e smettono di valere nell'istante in cui l'evento finisce. Non c'è nulla da ripristinare: le probabilità salvate non vengono mai modificate. Il Pokémon del giorno non dà bonus di punti (le regole di punteggio delle classifiche restano invariate).
+- **Un solo evento con bonus alla volta** (Leggendario e Shiny non si sovrappongono); Pokémon del giorno ed Evento Community sono compatibili con tutto. Sono compatibili anche con l'*Evento speciale* di *Gestione Spawn*: i moltiplicatori si combinano.
+- **Twitch offline o gioco fermo**: a scelta l'evento **termina** o viene **sospeso** e riprende con il tempo rimanente; in entrambi i casi nessun bonus resta attivo. Alla fine della diretta, con *termina*, l'evento si chiude prima del riepilogo.
+- **Sessioni manuali**: eventi solo se attivi *Anche nelle sessioni manuali*. **DEMO**: mai.
+- **Annunci**: sono messaggi della sezione *Messaggi Twitch* (gruppo *Eventi automatici*), con le stesse regole: partono solo se i Messaggi Twitch sono attivi e Twitch è collegato, rispettano intervalli minimi e limite al minuto, non vengono mai accodati per dopo. Le impostazioni dei Messaggi Twitch salvate con la 1.0.1 ricevono i nuovi annunci predefiniti; un annuncio eliminato non ricompare.
+- **Registrati**: ogni avvio, sospensione e fine è nello storico della pagina (con il risultato: Pokémon apparsi, leggendari e shiny, catture) e nel registro operazioni; gli eventi della sessione compaiono nello **Stream Recap**.
 
 ## Modalità manuale (gioco senza Twitch)
 
@@ -928,6 +983,7 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
 - **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
 - **Effetti sonori** (`test/audio.test.js`): scelta casuale dalla lista, nessuna ripetizione consecutiva, un evento per spawn e uno per cattura confermata, niente suoni per lanci falliti, rifiutati, duplicati o annullati, DEMO esclusa, interruttori, deduplicazione ed eventi vecchi scartati nell'overlay, una sola Browser Source `/overlay` per grafica e suoni (anche durante cambi di schermata e riconnessioni), audio solo in OBS e mai nell'anteprima della dashboard o in un browser normale, autoplay bloccato e pulsante *Sblocca audio*, dirette Twitch e sessioni manuali, OBS scollegato ed errori audio senza effetti sul gioco, persistenza delle impostazioni, whitelist dei file (niente percorsi arbitrari o collegamenti simbolici), nessun audio nella dashboard.
 - **Messaggi automatici in chat** (`test/chat-messages.test.js`): spenti per impostazione predefinita, messaggio di spawn e di cattura riuscita inviati dal bot, nome dall'identità Twitch, nessun messaggio per lanci falliti, rifiutati, duplicati, catture annullate (anche subito dopo) e DEMO, sostituzione e ripulitura delle variabili, varianti shiny e leggendaria, messaggi casuali senza ripetizioni e messaggio fisso, messaggi personalizzati e validazione, accesso solo admin con CSRF, intervallo minimo e limite al minuto, deduplicazione, bot assente, revocato o senza permesso (nessun ripiego sul canale), Twitch offline o non configurato (nessuna coda per dopo), sessione manuale con inizio e fine sessione, errori di Twitch (500, rete, 429) senza effetti sul gioco, anteprima e invio di prova, persistenza dopo il riavvio, backup e ripristino, database della 1.0.0 senza migrazioni.
+- **Overlay rotante, Statistiche Community ed Eventi automatici** (`test/engagement.test.js`): tutto spento per impostazione predefinita, nessuna migrazione, statistiche con dati vuoti e con dati reali (più catturato, fortunato con metrica configurabile, più raro, tipi a doppio tipo, record, parità segnalate, periodi), bonus Leggendario e Shiny solo sulla scelta dello spawn (stessa estrazione: Raro senza evento, Leggendario con l'evento, di nuovo Raro dopo), probabilità di cattura e impostazioni salvate invariate, eventi incompatibili rifiutati, fine per durata, sessioni manuali solo se abilitate e DEMO mai, Twitch offline con regola *termina* e *sospendi* senza bonus attivi e senza annunci arretrati, avvio automatico per tempo, fascia oraria e catture, Evento Community con annuncio, premio grafico ed evento sbloccato, Pokémon del giorno ripetibile e annunciato una volta, antispam degli annunci, rotazione con ordine, schermate saltate, blocco e priorità agli eventi, nessun messaggio sul canale audio, aggiornamento in tempo reale senza cambio schermata, un solo timer, snapshot WebSocket e riconnessione, riavvio, backup e ripristino, impostazioni dei Messaggi Twitch della 1.0.1, accesso solo admin con CSRF e validazione.
 - **Ripristino con un'altra `secret.key`** (`test/credentials-key.test.js`): backup di rete e locale ripristinati su un'installazione nuova (HTTP 200), Panoramica, Twitch e Sistema funzionanti, modalità manuale, avviso Twitch scollegato, credenziali cifrate originali intatte fino al nuovo collegamento, ricollegamento e reinserimento del Client Secret.
 - **Classifiche** (`test/leaderboard.test.js`): classifiche catture e punti, bonus rarità e shiny, punteggi immutabili e regole versionate, identità Twitch (User ID, cambio nickname) e locale, separazione Twitch/MANUAL, esclusione DEMO e modifiche del Pokédex, nessun doppio conteggio, catture annullate, `!leaderboard` autorizzato e rifiutato, attivazione da dashboard e da comando, nascondi, persistenza dopo il riavvio, congelamento, sblocco, istantanee immutabili, rinomina, aggiornamento WebSocket, overlay (DOM di prova), classifica finale persistente, Hall of Fame, Stream Recap, backup e ripristino, migrazione dallo schema v4.
 - **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):

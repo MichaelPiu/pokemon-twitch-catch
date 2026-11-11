@@ -17,6 +17,7 @@
 import { effectiveSettings, sanitizeConfig, defaultConfig, fontStack, LAYOUTS } from './overlay/theme-core.js';
 import { EventQueue } from './overlay/event-queue.js';
 import { LeaderboardLayer } from './overlay/leaderboard-view.js';
+import { RotationLayer } from './overlay/rotation-view.js';
 import { startOverlayAudio } from './overlay/audio-client.js';
 import { TYPE_IT } from './lib.js'; // nomi dei tipi: un'unica tabella per dashboard e overlay
 
@@ -45,6 +46,10 @@ canvas.appendChild(anchor);
 stage.appendChild(canvas);
 // Schermate delle classifiche: livello separato, non toccato da fine diretta o azzeramenti.
 const board = new LeaderboardLayer(canvas);
+// Overlay rotante (classifica, catture, shiny, obiettivi, statistiche, evento):
+// livello separato, deciso dal server; si fa da parte quando c'è una schermata classifica.
+const rot = new RotationLayer(canvas);
+const syncLayers = () => rot.suppress(board.info().visible);
 
 let theme = null; // { base, config, ... }
 let current = null;
@@ -427,7 +432,7 @@ function purgeSim() {
 }
 
 function handle(type, data, ts) {
-  if (ts) clockSkew = ts - Date.now();
+  if (ts) { clockSkew = ts - Date.now(); rot.setSkew(clockSkew); }
   switch (type) {
     case 'snapshot':
       clearAll();
@@ -436,8 +441,16 @@ function handle(type, data, ts) {
       if (data.active && data.spawn) renderSpawn(data.spawn);
       board.reset();
       board.apply(data.leaderboard || { visible: false }, { animate: false });
+      rot.reset();
+      rot.apply(data.rotation || { visible: false }, { animate: false });
+      rot.setEvents(data.events);
+      syncLayers();
       break;
-    case 'leaderboard': board.apply(data); break;
+    case 'leaderboard': board.apply(data); syncLayers(); break;
+    // Rotazione ed eventi: fuori dalla coda delle animazioni, nessun effetto sull'audio.
+    case 'rotation': rot.apply(data); syncLayers(); break;
+    case 'events': rot.setEvents(data); break;
+    case 'celebration': rot.celebrate(data); break;
     case 'settings': applySettings(data).catch(() => {}); break; // immediato, fuori dalla coda
     case 'spawn': onSpawn(data); break;
     case 'throw': onThrow(data); break;
@@ -455,7 +468,7 @@ function handle(type, data, ts) {
 window.__liveCatchOverlay = {
   state: () => ({
     base: theme?.base, name: theme?.name, rev: theme?.rev, spawn: current?.id ?? null, sim: !!current?.sim,
-    attempts: current?.attempts ?? null, notes: notesEl.childElementCount, pendingNotes: queue.length, leaderboard: board.info(),
+    attempts: current?.attempts ?? null, notes: notesEl.childElementCount, pendingNotes: queue.length, leaderboard: board.info(), rotation: rot.info(),
     queue: { size: events.size, busy: events.busy, limit: events.limit, ...events.stats },
   }),
 };

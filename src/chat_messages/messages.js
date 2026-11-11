@@ -24,6 +24,13 @@ const SPAWN_VARS = ['pokemon', 'pokemon_lower', 'pokemon_upper', 'rarity', 'leve
 const CAPTURE_VARS = ['user', ...SPAWN_VARS];
 const SESSION_VARS = ['session_type'];
 const SESSION_END_VARS = ['session_type', 'captures', 'spawns', 'participants', 'duration'];
+const EVENT_START_VARS = ['duration', 'boost'];
+const EVENT_END_VARS = ['event', 'captures'];
+const POTD_VARS = ['pokemon', 'rarity'];
+const COMMUNITY_VARS = ['goal', 'reward'];
+// Eventi presenti nella prima versione dei Messaggi Twitch (1.0.1): per le impostazioni
+// salvate allora, i messaggi predefiniti degli eventi aggiunti dopo vengono proposti.
+const CATALOG_1_0_1 = ['spawn', 'shiny_spawn', 'capture', 'shiny_capture', 'legendary_capture', 'session_start', 'session_end'];
 
 // Catalogo degli eventi. "fallback": se l'evento specifico è spento o non ha
 // messaggi attivi si usa quello generico (mai due messaggi per lo stesso fatto).
@@ -40,6 +47,17 @@ export const CHAT_EVENTS = [
     hint: 'Inizio di una diretta Twitch o di una sessione manuale (non dopo una ripresa o un riavvio).' },
   { key: 'session_end', label: 'Fine sessione', group: 'session', available: true, vars: SESSION_END_VARS,
     hint: 'Fine della diretta o della sessione manuale.' },
+  { key: 'event_legendary_start', label: 'Inizio Evento Leggendario', group: 'events', available: true, vars: EVENT_START_VARS,
+    hint: 'Annuncio degli Eventi automatici: parte quando inizia un Evento Leggendario.' },
+  { key: 'event_shiny_start', label: 'Inizio Bonus Shiny', group: 'events', available: true, vars: EVENT_START_VARS,
+    hint: 'Annuncio degli Eventi automatici: parte quando inizia un Bonus Shiny.' },
+  { key: 'event_end', label: 'Fine di un evento', group: 'events', available: true, vars: EVENT_END_VARS,
+    hint: 'Fine di un Evento Leggendario o di un Bonus Shiny.' },
+  { key: 'pokemon_of_day', label: 'Pokémon del giorno', group: 'events', available: true, vars: POTD_VARS,
+    hint: 'Una volta al giorno, alla prima sessione in cui gli eventi sono attivi.' },
+  { key: 'pokemon_of_day_capture', label: 'Cattura del Pokémon del giorno', group: 'events', available: true, vars: ['user', ...POTD_VARS] },
+  { key: 'community_goal_start', label: 'Nuovo obiettivo della community', group: 'events', available: true, vars: COMMUNITY_VARS },
+  { key: 'community_goal_complete', label: 'Obiettivo della community raggiunto', group: 'events', available: true, vars: COMMUNITY_VARS },
   { key: 'leaderboard_first', label: 'Primo posto in classifica', group: 'future', available: false,
     reason: 'Il motore non segnala ancora i cambi di posizione in classifica.' },
   { key: 'personal_record', label: 'Record personale di un giocatore', group: 'future', available: false,
@@ -61,13 +79,18 @@ export const CHAT_VARIABLES = {
   captures: 'Catture della sessione',
   spawns: 'Pokémon apparsi nella sessione',
   participants: 'Giocatori della sessione',
-  duration: 'Durata della sessione (es. 1 h 20 min)',
+  duration: 'Durata (della sessione o dell\'evento, es. 1 h 20 min)',
+  boost: 'Moltiplicatore del bonus dell\'evento (es. 3)',
+  event: 'Nome dell\'evento (Evento Leggendario, Bonus Shiny)',
+  goal: 'Obiettivo della community (numero di catture)',
+  reward: 'Premio dell\'obiettivo della community',
 };
 
 // Valori d'esempio per l'anteprima nella dashboard.
 export const SAMPLE_VARS = {
   pokemon: 'Pikachu', pokemon_lower: 'pikachu', pokemon_upper: 'PIKACHU', rarity: 'Raro', level: '', shiny: '',
   user: 'AshKetchum', session_type: 'diretta', captures: '12', spawns: '20', participants: '7', duration: '1 h 20 min',
+  boost: '3', event: 'Evento Leggendario', goal: '50', reward: 'Premio sbloccato: grazie a tutti!',
 };
 
 export const LIMITS = { textMax: 300, messagesMax: 100, perEventMax: 20, messageMax: 450, valueMax: 40, cooldownMax: 3600, perMinuteMax: 20 };
@@ -142,8 +165,18 @@ export class ChatMessagesService {
       allowChannelAccount: s.allowChannelAccount ?? CHAT_MESSAGE_DEFAULTS.allowChannelAccount,
       maxPerMinute: s.maxPerMinute ?? CHAT_MESSAGE_DEFAULTS.maxPerMinute,
       events,
-      messages: Array.isArray(s.messages) ? s.messages : CHAT_MESSAGE_DEFAULTS.messages.map((m) => ({ ...m })),
+      messages: this.mergedMessages(s),
     };
+  }
+
+  // Messaggi salvati + quelli predefiniti degli eventi che non esistevano quando
+  // sono stati salvati (un messaggio eliminato di proposito non ricompare: conta
+  // l'elenco degli eventi conosciuti al momento del salvataggio).
+  mergedMessages(s) {
+    if (!Array.isArray(s.messages)) return CHAT_MESSAGE_DEFAULTS.messages.map((m) => ({ ...m }));
+    const known = new Set(Array.isArray(s.catalog) ? s.catalog : CATALOG_1_0_1);
+    const added = CHAT_MESSAGE_DEFAULTS.messages.filter((m) => !known.has(m.event) && !s.messages.some((x) => x.id === m.id));
+    return [...s.messages, ...added.map((m) => ({ ...m }))];
   }
 
   // Validazione completa: si salva solo una configurazione coerente.
@@ -203,6 +236,7 @@ export class ChatMessagesService {
     for (const [key, e] of Object.entries(next.events)) {
       if (e.fixedId && !next.messages.some((m) => m.id === e.fixedId && m.event === key)) e.fixedId = null;
     }
+    next.catalog = CHAT_EVENTS.filter((e) => e.available).map((e) => e.key);
     this.store.set('chatMessages', next);
     return next;
   }
@@ -430,6 +464,21 @@ export class ChatMessagesService {
     const ev = EVENT.get(event);
     const vars = Object.fromEntries((ev?.vars || Object.keys(SAMPLE_VARS)).map((k) => [k, SAMPLE_VARS[k]]));
     return renderTemplate(cleanValue(text, LIMITS.textMax), vars);
+  }
+
+  // Anteprima degli annunci di altre sezioni (es. Eventi automatici): messaggio che
+  // partirebbe adesso (fisso o il primo attivo) con i valori d'esempio.
+  announcementsPreview(keys) {
+    const s = this.settings();
+    return keys.filter((k) => EVENT.get(k)?.available).map((k) => {
+      const cfg = s.events[k];
+      const list = this.activeMessages(s, k);
+      const msg = cfg.mode === 'fixed' ? list.find((m) => m.id === cfg.fixedId) || list[0] : list[0];
+      return {
+        key: k, label: EVENT.get(k).label, enabled: !!cfg.enabled && list.length > 0, mode: cfg.mode, messages: list.length,
+        cooldownS: cfg.cooldownS, preview: msg ? this.preview(msg.text, k) : null,
+      };
+    });
   }
 
   // Invio di prova richiesto dall'amministratore: passa dagli stessi controlli

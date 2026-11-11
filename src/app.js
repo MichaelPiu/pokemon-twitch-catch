@@ -41,6 +41,10 @@ import { AudioService, AUDIO_TYPES } from './audio/audio.js';
 import { registerAudioRoutes } from './api/audio.js';
 import { ChatMessagesService } from './chat_messages/messages.js';
 import { registerChatMessageRoutes } from './api/chatMessages.js';
+import { CommunityStatsService } from './community/stats.js';
+import { AutoEventsService } from './events/events.js';
+import { RotationService } from './overlay/rotation.js';
+import { registerEngagementRoutes } from './api/engagement.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -173,6 +177,35 @@ export class App {
         try { prev?.(s); } finally { setImmediate(() => { if (this.db?.db) this.chatMessages.onSessionClosed(s); }); }
       };
     }
+    // Statistiche Community, Eventi automatici e Overlay rotante: stessi eventi del
+    // motore, stesso hub WebSocket e stessi Messaggi Twitch per gli annunci.
+    this.communityStats = new CommunityStatsService({ db: this.db, settings: this.adminSettings, currentSession: () => this.leaderboard.currentSession() });
+    this.events = new AutoEventsService({ db: this.db, settings: this.adminSettings, engine: this.engine, hub: this.hub, chatMessages: this.chatMessages, log: this.logger.child('eventi'), timers: this.timers });
+    this.engine.spawnModifier = () => this.events.spawnModifier();
+    this.leaderboard.recapExtras = (s) => this.events.forSession(s);
+    {
+      // Fine sessione: prima gli eventi (così compaiono nel riepilogo), poi il resto.
+      const prev = this.engine.sessions.onClosed;
+      this.engine.sessions.onClosed = (s) => {
+        try { this.events.onSessionClosed(s); } finally { prev?.(s); }
+      };
+    }
+    this.rotation = new RotationService({
+      db: this.db, settings: this.overlaySettings, hub: this.hub, leaderboard: this.leaderboard, stats: this.communityStats, events: this.events,
+      log: this.logger.child('overlay-rotante'), timers: this.timers,
+    });
+    this.engine.on('attempt', (res) => {
+      this.events.onAttempt(res);
+      if (res?.leaderboardEvent) this.rotation.scheduleRefresh();
+    });
+    this.engine.on('revoked', () => this.rotation.scheduleRefresh());
+    this.events.on('change', (info) => this.rotation.onEvents(info));
+    // Cambi di stato del gioco (diretta, pausa, sessione manuale): controllo degli eventi.
+    this.engine.on('status', () => {
+      if (this.eventsTickQueued) return;
+      this.eventsTickQueued = true;
+      setImmediate(() => { this.eventsTickQueued = false; if (this.db?.db) this.events.tick(); });
+    });
     this.importer = new PokemonImporter({ db: this.db, config: c, log: this.logger.child('pokeapi'), fetchImpl: this.fetchImpl });
     this.importer.on('progress', (p) => this.hub.admin('import', p));
     this.backups = new BackupService({ db: this.db, config: c, adminSettings: this.adminSettings, log: this.logger.child('backup') });
@@ -186,7 +219,12 @@ export class App {
     // Gioco che si attiva (diretta, ripresa, DEMO): via gli elementi simulati dagli overlay.
     this.sm.on('transition', ({ to }) => { if (to === STATES.LIVE || to === STATES.PAUSED) this.simulator.purge(`stato ${to}`); });
     this.engine.on('status', () => { if (this.engine.mode) this.simulator.purge(this.engine.mode === 'demo' ? 'DEMO' : 'diretta'); });
-    this.hub.setSnapshot('overlay', () => ({ ...this.engine.overlaySnapshot(), settings: this.themes.effective(), leaderboard: this.leaderboard.overlayPayload() }));
+    this.hub.setSnapshot('overlay', () => ({
+      ...this.engine.overlaySnapshot(), settings: this.themes.effective(), leaderboard: this.leaderboard.overlayPayload(),
+      rotation: this.rotation.payload(), events: this.events.overlayPayload(),
+    }));
+    this.events.start();
+    this.rotation.start();
     this.hub.setSnapshot('admin', () => this.liveStatus());
     this.hub.setSnapshot('audio', () => this.audio.snapshot());
     this.engine.on('status', () => this.hub.admin('status', this.liveStatus()));
@@ -209,6 +247,7 @@ export class App {
     registerLeaderboardRoutes(this);
     registerAudioRoutes(this);
     registerChatMessageRoutes(this);
+    registerEngagementRoutes(this);
 
     if (this.timers) { this.backups.startScheduler(); this.networkBackups.startScheduler(); }
     this.pruneTimer = setInterval(() => this.prune(), 6 * 3600 * 1000);
@@ -524,6 +563,8 @@ export class App {
     this.engine.recoverAfterRestart('restore');
     this.engine.emitStatus();
     this.leaderboard.pushOverlay(); // schermata classifica come salvata nel backup ripristinato
+    this.events.changed({ kind: 'restore' });
+    this.rotation.restart();
     this.monitor.start().catch(() => {});
   }
 
@@ -534,6 +575,8 @@ export class App {
     this.engine?.shutdown();
     this.leaderboard?.shutdown();
     this.chatMessages?.close();
+    this.events?.close();
+    this.rotation?.stop();
     this.simulator?.stop();
     this.backups?.stop();
     this.networkBackups?.stop();

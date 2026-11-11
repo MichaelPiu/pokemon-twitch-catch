@@ -260,6 +260,18 @@ Nessuna migrazione del database e nessuna nuova autorizzazione Twitch: si usa il
 5. Scollega la rete o ferma Twitch (EventSub non collegato): il riquadro passa a *non partono*, il gioco continua e al ritorno non arrivano messaggi arretrati.
 6. Riavvia l'app: le impostazioni restano.
 
+### Overlay rotante, Statistiche Community ed Eventi automatici (versione successiva alla 1.0.1, non ancora pubblicata)
+
+Nessuna migrazione del database (schema v5), nessuna nuova sorgente OBS, nessuna nuova autorizzazione Twitch. Dopo l'aggiornamento tutto resta **spento**.
+
+1. *Statistiche Community*: scegli *Storico complessivo*; i numeri devono essere coerenti con le *Classifiche* (stesse catture valide). Cambia la metrica dello *Spettatore più fortunato* e controlla la motivazione.
+2. *Overlay rotante*: attivalo e salva. In OBS la sorgente resta `http://IP-UMBREL:8788/overlay` (premi *Aggiorna la cache della pagina corrente* per caricare il codice nuovo): a sinistra compare il pannello che cambia schermata secondo le durate. Prova *Blocca*, *Schermata successiva* e l'*Anteprima* (non va in OBS).
+3. Con un suono di spawn in corso cambia schermata: il suono non si interrompe e non riparte.
+4. *Eventi automatici*: attiva gli eventi e il *Bonus Shiny*, salva; durante una diretta di prova premi *Avvia Bonus Shiny*: in OBS compaiono il badge con il conto alla rovescia e la schermata dell'evento; se i Messaggi Twitch sono attivi il bot annuncia l'evento.
+5. Ferma la diretta (o scollega la rete): con la regola *Termina l'evento* l'evento si chiude e nello *Storico degli eventi* compare con il motivo e il risultato; al ritorno non arrivano annunci arretrati. Lo *Stream Recap* della diretta elenca l'evento.
+6. *Evento Community* con un obiettivo piccolo (es. 3 catture): al traguardo compaiono il premio grafico in OBS e l'annuncio in chat.
+7. Riavvia l'app: impostazioni, blocco della schermata, obiettivo in corso e storico restano.
+
 ## Tornare a una versione precedente
 
 La procedura completa è nel README (*Aggiornamento → Tornare a una versione precedente*). In breve, per Umbrel:

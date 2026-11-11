@@ -1,5 +1,25 @@
 # Changelog
 
+## Non pubblicato
+
+### Overlay rotante, Statistiche Community ed Eventi automatici
+
+#### Novità
+- **Overlay rotante** nella stessa Browser Source `/overlay`: classifica (Top 10 con cambi di posizione animati), ultime catture, shiny, obiettivi della community e Pokémon del giorno, Statistiche Community, evento in corso. Ordine, schermate attive, durata per schermata con minimo e massimo, transizione, posizione, blocco manuale, schermata successiva e anteprima dalla nuova sezione *Overlay rotante*. Schermate senza dati saltate; rotazione decisa dal server con un solo timer (stesso stato per tutte le sorgenti OBS, anche dopo riconnessioni e riavvii); aggiornamenti in tempo reale sul WebSocket esistente; i cambi di schermata non toccano il canale audio.
+- **Statistiche Community** (nuova sezione): Pokémon più catturato e Top 10, spettatore più fortunato con metrica configurabile e spiegata, Pokémon più raro, allenatore con più catture e con più shiny, tipo più catturato, totali, record di catture in una sessione, sessione con più Leggendari; periodi sessione corrente, ultima diretta, 7 giorni, 30 giorni, storico; parità sempre indicate.
+- **Eventi automatici** (nuova sezione): Evento Leggendario (per tempo o per catture), Bonus Shiny (programmato o manuale), Pokémon del giorno, Evento Community con obiettivo, barra di avanzamento, premio grafico e nuovo obiettivo. Giorni e orari, durate, frequenze e moltiplicatori configurabili; avvio e arresto manuali; stato e storico con il risultato di ogni evento; eventi nello Stream Recap.
+- **Annunci in chat** degli eventi come nuovi messaggi della sezione *Messaggi Twitch* (gruppo *Eventi automatici*), con le stesse regole antispam e senza code per dopo.
+
+#### Sicurezza del gioco
+- Tutto spento per impostazione predefinita. I bonus valgono solo per la scelta dei Pokémon che appaiono (rarità e shiny), sono letti a ogni spawn e cessano con l'evento: probabilità di cattura, impostazioni salvate e regole di punteggio non cambiano mai. Un solo evento con bonus alla volta. Twitch offline o gioco fermo: evento terminato o sospeso secondo la regola scelta, mai con bonus attivi. Sessioni manuali solo se abilitate, DEMO mai.
+
+#### Aggiornamento
+- Nessuna migrazione: schema v5 invariato. Impostazioni in `admin_settings` (`autoEvents`, `autoEventsState`, `communityStats`) e `overlay_settings` (`rotation`), incluse nei backup. Ritorno alla 1.0.1 possibile senza ripristino (le chiavi nuove vengono ignorate).
+- Il motore espone un punto di estensione per il bonus degli eventi (`spawnModifier`) e il riepilogo uno per gli eventi della sessione (`recapExtras`); senza eventi attivi il comportamento è identico alla 1.0.1.
+
+#### Test
+- `test/engagement.test.js`: 20 test.
+
 ## 1.0.1 — messaggi automatici in chat (versione di test)
 
 Prerelease di test sopra la 1.0.0 stabile: tag `v1.0.1`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.1`.

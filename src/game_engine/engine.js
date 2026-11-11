@@ -11,6 +11,17 @@ import { processAttempt, handleRedemptionUpdate } from '../capture/capture.js';
 import { SessionService } from './sessions.js';
 import { audit } from '../audit.js';
 
+// Configurazione per la scelta del Pokémon con il bonus di un evento automatico.
+// Restituisce una COPIA: le impostazioni salvate e quelle usate per la cattura non
+// cambiano mai. Senza bonus restituisce la configurazione originale.
+export function withSpawnModifier(cfg, mod) {
+  if (!mod) return cfg;
+  const base = cfg.event?.enabled ? cfg.event : { enabled: true, types: [], rarityBoost: {}, shinyMultiplier: 1 };
+  const rarityBoost = { ...(base.rarityBoost || {}) };
+  for (const [r, m] of Object.entries(mod.rarityBoost || {})) rarityBoost[r] = (rarityBoost[r] ?? 1) * m;
+  return { ...cfg, event: { ...base, enabled: true, types: cfg.event?.enabled ? base.types : [], rarityBoost, shinyMultiplier: (base.shinyMultiplier ?? 1) * (mod.shinyMultiplier ?? 1) } };
+}
+
 export const secureRandom = () => randomInt(0, 2 ** 47) / 2 ** 47;
 
 export class GameEngine extends EventEmitter {
@@ -31,6 +42,7 @@ export class GameEngine extends EventEmitter {
     this.spawnTimer = null;
     this.expiryTimer = null;
     this.lastError = null;
+    this.spawnModifier = null; // () => bonus attivo degli eventi automatici (vedi src/events/events.js)
   }
 
   cfg() {
@@ -252,14 +264,16 @@ export class GameEngine extends EventEmitter {
   spawn({ source = 'auto', pokemonId = null, shiny = null } = {}) {
     if (!this.running) throw new Error('Il motore di gioco non è attivo (canale offline)');
     const cfg = this.cfg();
+    // Bonus temporaneo di un evento automatico (solo scelta del Pokémon e shiny, mai la cattura).
+    const mod = this.mode === 'demo' ? null : (this.spawnModifier?.() || null);
     let pick;
     if (pokemonId) {
       const p = this.db.get('SELECT * FROM pokemon WHERE id = ?', pokemonId);
       if (!p) throw new Error('Pokémon non trovato');
-      const isShiny = shiny == null ? !!(cfg.shiny.enabled && p.shiny_enabled && this.rng() < cfg.shiny.chance) : !!shiny;
+      const isShiny = shiny == null ? !!(cfg.shiny.enabled && p.shiny_enabled && this.rng() < Math.min(1, cfg.shiny.chance * (mod?.shinyMultiplier ?? 1))) : !!shiny;
       pick = { pokemon: p, isShiny };
     } else {
-      pick = pickPokemon(this.db, cfg, this.rng);
+      pick = pickPokemon(this.db, withSpawnModifier(cfg, mod), this.rng);
       if (pick && shiny != null) pick.isShiny = !!shiny; // es. "Genera shiny" dalla dashboard
     }
     if (!pick) {
