@@ -95,6 +95,9 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ghcr.io/${{ github.repository }}
+          # Nessun tag mobile: Umbrel e gli utenti usano solo tag di versione (e digest).
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch

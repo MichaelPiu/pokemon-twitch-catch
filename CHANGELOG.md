@@ -1,6 +1,14 @@
 # Changelog
 
-## Non pubblicato
+## 1.0.1 — messaggi automatici in chat (versione di test)
+
+Prerelease di test sopra la 1.0.0 stabile: tag `v1.0.1`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.1`.
+
+### Aggiornamento dalla 1.0.0
+- Nessuna migrazione: lo schema del database resta v5 e il formato dei backup non cambia. Le impostazioni dei messaggi stanno in `admin_settings.chatMessages`, incluse nei backup.
+- Dopo l'aggiornamento i messaggi in chat sono spenti; si attivano dalla sezione *Messaggi Twitch*.
+- Ritorno alla 1.0.0: possibile senza perdita di dati (stesso schema); la 1.0.0 ignora le impostazioni dei messaggi, che ritornano disponibili reinstallando la 1.0.1.
+- CI: il tag Docker `latest` non viene più spostato dai rilasci (si usano solo tag di versione e `sha-…`).
 
 ### Messaggi automatici in chat (sezione "Messaggi Twitch")
 

@@ -47,6 +47,20 @@ Prerequisito: immagine GHCR scaricabile senza autenticazione. **Verificato il 10
 
 Dati: `~/umbrel/app-data/piu-live-catch/data` (database, immagini, backup, log, `secret.key`), inclusi nei backup di Umbrel.
 
+## Aggiornare dalla 1.0.0 alla 1.0.1 (versione di test)
+
+La 1.0.1 aggiunge solo i messaggi automatici in chat. **Nessuna migrazione**: lo schema resta v5, il formato dei backup non cambia e i messaggi restano spenti finché non li attivi.
+
+> ⚠️ **Non disinstallare** l'app per aggiornarla: su Umbrel la disinstallazione cancella anche `app-data`.
+
+1. Dalla dashboard: *Backup & Sistema → Crea backup ora* e scarica il file sul PC (consigliato).
+2. Se c'è una diretta in corso, aspetta che finisca (l'aggiornamento riavvia l'app).
+3. Umbrel → **App Store** → store **Piu** → **Live Catch**: compare **Update** con la versione `1.0.1`. Se non compare, attendi qualche minuto (Umbrel rilegge gli store della community periodicamente) e riapri l'App Store. Premi **Update**.
+4. Verifica: `http://umbrel.local:8788/health` → `"status":"ok"`; *Backup & Sistema* → versione **1.0.1**, **schema DB v5**; Pokédex, classifiche, audio, backup e Twitch come prima; nel menu compare **Messaggi Twitch**.
+5. Collaudo dei messaggi: [Messaggi Twitch](#messaggi-twitch-dalla-101-versione-di-test).
+
+Ritorno alla 1.0.0: stesso schema, quindi nessun ripristino necessario; la 1.0.0 ignora le impostazioni dei messaggi (restano salvate). Vedi [Tornare a una versione precedente](#tornare-a-una-versione-precedente).
+
 ## Aggiornare l'app esistente alla 1.0.0 (dati conservati)
 
 Vale per chi ha già installato Live Catch dallo store (rc.1, rc.2 o rc.3). I dati restano in `~/umbrel/app-data/piu-live-catch/data` e **non** vengono toccati dall'aggiornamento: l'app nuova li riapre e migra il database allo schema v5.
@@ -235,7 +249,7 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 
 I file audio restano nella cartella dati dopo gli aggiornamenti, ma non sono nei backup dell'app: tienine una copia a parte.
 
-### Messaggi Twitch (versione successiva alla 1.0.0, non ancora pubblicata)
+### Messaggi Twitch (dalla 1.0.1, versione di test)
 
 Nessuna migrazione del database e nessuna nuova autorizzazione Twitch: si usa il bot già collegato. Dopo l'aggiornamento i messaggi restano **spenti**.
 
