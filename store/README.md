@@ -14,7 +14,7 @@ Questo repository contiene **solo** i file di installazione per Umbrel (nessun c
 
 L'immagine Docker (`ghcr.io/michaelpiu/pokemon-twitch-catch`) è fissata per tag **e** digest ed è pubblicata per `linux/amd64` e `linux/arm64`. La GitHub Action di questo repository esegue il linter ufficiale di Umbrel con `--check-images`: controlla che l'immagine sia fissata per digest e scaricabile senza autenticazione, e che l'icona sia raggiungibile.
 
-> **Ultima verifica (11 novembre 2026, senza credenziali, versione 1.0.1 di test):** pacchetto GHCR pubblico; token anonimo di pull e manifest `1.0.1` HTTP 200, con digest `sha256:f5b60091c595bd22af7ad2d6883aa4a20e5751c4f18f19aac3075b61f7640dea` uguale a quello fissato nello store per questa versione; immagini `linux/amd64` e `linux/arm64` scaricate per intero (11 layer ciascuna, sha256 verificati). Ogni modifica dello store viene ricontrollata dall'Action. **Non ancora verificati**: l'installazione e l'aggiornamento su un vero Umbrel e l'uso con Twitch e OBS reali.
+> **Ultima verifica (11 novembre 2026, senza credenziali, versione 1.0.2 di test):** pacchetto GHCR pubblico; token anonimo di pull e manifest `1.0.2` HTTP 200, con digest `sha256:1373668967dc2c721cf0500e77319eabbca5836b31e7e2db9cb2e2d2066eef34` uguale a quello fissato nello store per questa versione; immagini `linux/amd64` e `linux/arm64` scaricate per intero (11 layer ciascuna, sha256 verificati). Ogni modifica dello store viene ricontrollata dall'Action. **Non ancora verificati**: l'installazione e l'aggiornamento su un vero Umbrel e l'uso con Twitch e OBS reali.
 
 ## Aggiornare Live Catch
 
