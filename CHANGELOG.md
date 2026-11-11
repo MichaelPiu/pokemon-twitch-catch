@@ -1,5 +1,24 @@
 # Changelog
 
+## Non pubblicato
+
+### Messaggi automatici in chat (sezione "Messaggi Twitch")
+
+#### Novità
+- Il bot annuncia in chat lo spawn di un Pokémon e le catture riuscite, con testi modificabili e variabili (`{pokemon}`, `{pokemon_lower}`, `{pokemon_upper}`, `{rarity}`, `{shiny}`, `{level}`, `{user}`). `{level}` resta vuoto: il gioco non ha livelli.
+- Eventi aggiuntivi già supportati dal motore: spawn shiny, cattura shiny, cattura leggendaria o mitica (sostituiscono il messaggio generico), inizio e fine sessione (diretta o sessione manuale). Primo posto in classifica, record personale ed evoluzione compaiono come *non disponibile*.
+- Nuova sezione della dashboard: attivazione generale e per evento, messaggi personalizzati (aggiungi, duplica, modifica, elimina, attiva/disattiva), messaggio fisso o casuale da un gruppo, intervallo minimo per tipo, limite al minuto, anteprima con valori d'esempio, invio di prova con conferma, ultimi messaggi con l'esito.
+- Invio tramite il `ChatSender` esistente con l'account del bot: nessuna seconda connessione a Twitch e nessuna nuova autorizzazione. Con un bot collegato non si usa mai il token del canale; senza bot, solo su consenso esplicito.
+- Antispam: un messaggio per spawn e per cattura, intervallo minimo per tipo, limite al minuto, coda corta, messaggi vecchi scartati, pausa dopo un 429. Twitch offline o bot non utilizzabile: messaggi scartati, mai accodati.
+- Sicurezza: sostituzione delle variabili lato server con dati del database (nome dall'identità Twitch registrata), testo semplice su una riga senza caratteri di controllo né `/` iniziali, modifiche solo per l'amministratore (sessione e CSRF) e registrate nel registro operazioni, nessun token nei log.
+- Il motore emette un nuovo evento interno `session` (inizio sessione); nessun cambiamento al gioco.
+
+#### Invariato
+- Probabilità di cattura, motore di gioco, Channel Points, classifiche, overlay OBS, audio, comandi chat, schema del database (impostazioni in `admin_settings.chatMessages`), formato dei backup. Dopo l'aggiornamento i messaggi sono spenti.
+
+#### Test
+- `test/chat-messages.test.js`: 23 test.
+
 ## 1.0.0 — prima versione stabile
 
 Pubblicata il 10 novembre 2026: tag `v1.0.0`, immagine `ghcr.io/michaelpiu/pokemon-twitch-catch:1.0.0@sha256:6f03f10cf2bcea6558d2baa7ea0d24068cc865eb8c8c1684e3a61d5c72808055` (`linux/amd64`, `linux/arm64`), store Umbrel aggiornato (commit dello store `004e5ff`).

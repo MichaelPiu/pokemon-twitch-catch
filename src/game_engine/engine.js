@@ -93,6 +93,7 @@ export class GameEngine extends EventEmitter {
     this.hub.overlay('state', { active: true, demo: false });
     this.scheduleNext(resumed ? null : this.cfg().spawn.firstSpawnDelayS);
     this.emitStatus();
+    this.emit('session', { session, resumed });
     return { session, resumed };
   }
 
@@ -157,6 +158,7 @@ export class GameEngine extends EventEmitter {
     audit(this.db, { admin, action: 'manual_session_start', targetType: 'session', targetId: session.id }, this.log);
     this.scheduleNext(this.cfg().spawn.firstSpawnDelayS);
     this.emitStatus();
+    this.emit('session', { session, resumed: false });
     return session;
   }
 

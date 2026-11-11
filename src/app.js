@@ -39,6 +39,8 @@ import { LeaderboardService } from './leaderboard/leaderboard.js';
 import { registerLeaderboardRoutes } from './api/leaderboard.js';
 import { AudioService, AUDIO_TYPES } from './audio/audio.js';
 import { registerAudioRoutes } from './api/audio.js';
+import { ChatMessagesService } from './chat_messages/messages.js';
+import { registerChatMessageRoutes } from './api/chatMessages.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -148,6 +150,29 @@ export class App {
       engine: this.engine, commands: this.commands, chat: this.chat, gameSettings: this.gameSettings, hub: this.hub,
       log: this.logger.child('twitch'), WebSocketImpl: this.WebSocketImpl, timers: this.timers,
     });
+    // Messaggi automatici in chat: stessi eventi del motore, inviati dal ChatSender
+    // esistente con l'account del bot (nessuna seconda connessione a Twitch).
+    this.chatMessages = new ChatMessagesService({
+      db: this.db, settings: this.adminSettings, chat: this.chat, credentials: this.credentials, log: this.logger.child('chat-auto'),
+      twitch: () => {
+        const m = this.monitor;
+        return {
+          configured: !!m?.configured(),
+          connected: !!m?.eventsub?.connected && !m.transientIssue && this.sm.state !== STATES.ERROR,
+          broadcasterError: !!this.credentials.authError('broadcaster'),
+          credentialsUnreadable: !!this.credentials.unreadable()?.broadcaster,
+        };
+      },
+    });
+    this.engine.on('spawn', (sp) => this.chatMessages.onSpawn(sp));
+    this.engine.on('attempt', (res) => this.chatMessages.onAttempt(res));
+    this.engine.on('session', (e) => this.chatMessages.onSession(e));
+    {
+      const prev = this.engine.sessions.onClosed;
+      this.engine.sessions.onClosed = (s) => {
+        try { prev?.(s); } finally { setImmediate(() => { if (this.db?.db) this.chatMessages.onSessionClosed(s); }); }
+      };
+    }
     this.importer = new PokemonImporter({ db: this.db, config: c, log: this.logger.child('pokeapi'), fetchImpl: this.fetchImpl });
     this.importer.on('progress', (p) => this.hub.admin('import', p));
     this.backups = new BackupService({ db: this.db, config: c, adminSettings: this.adminSettings, log: this.logger.child('backup') });
@@ -183,6 +208,7 @@ export class App {
     registerPokedexRoutes(this);
     registerLeaderboardRoutes(this);
     registerAudioRoutes(this);
+    registerChatMessageRoutes(this);
 
     if (this.timers) { this.backups.startScheduler(); this.networkBackups.startScheduler(); }
     this.pruneTimer = setInterval(() => this.prune(), 6 * 3600 * 1000);
@@ -507,6 +533,7 @@ export class App {
     this.monitor?.stop();
     this.engine?.shutdown();
     this.leaderboard?.shutdown();
+    this.chatMessages?.close();
     this.simulator?.stop();
     this.backups?.stop();
     this.networkBackups?.stop();

@@ -235,6 +235,17 @@ Il nome dedicato punta allo stesso IP di Umbrel, quindi anche le altre app sono 
 
 I file audio restano nella cartella dati dopo gli aggiornamenti, ma non sono nei backup dell'app: tienine una copia a parte.
 
+### Messaggi Twitch (versione successiva alla 1.0.0, non ancora pubblicata)
+
+Nessuna migrazione del database e nessuna nuova autorizzazione Twitch: si usa il bot già collegato. Dopo l'aggiornamento i messaggi restano **spenti**.
+
+1. *Gestione Twitch*: il bot deve risultare collegato. *Messaggi Twitch*: il riquadro in alto deve dire *Pronto: i messaggi partono con l'account del bot*.
+2. Scegli un messaggio e premi **Prova in chat**: deve comparire una volta nella chat del canale, scritto dal bot.
+3. Attiva *Messaggi automatici attivi* e salva. Sessione manuale: *Genera Pokémon* → un messaggio di spawn; lancio riuscito → un messaggio di cattura (circa 2 secondi dopo); lancio fallito → niente.
+4. Diretta di prova: un riscatto riuscito produce un solo messaggio di cattura con il nome Twitch di chi ha riscattato; un riscatto rimborsato subito non viene annunciato.
+5. Scollega la rete o ferma Twitch (EventSub non collegato): il riquadro passa a *non partono*, il gioco continua e al ritorno non arrivano messaggi arretrati.
+6. Riavvia l'app: le impostazioni restano.
+
 ## Tornare a una versione precedente
 
 La procedura completa è nel README (*Aggiornamento → Tornare a una versione precedente*). In breve, per Umbrel:

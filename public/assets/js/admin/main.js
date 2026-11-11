@@ -22,6 +22,7 @@ const NAV = [
   ['balls', 'gift', 'Poké Ball e Ricompense', 'Moltiplicatori e collegamento ai punti canale'],
   ['twitch', 'twitch', 'Gestione Twitch', 'Account, connessione, ricompense ed eventi'],
   ['commands', 'chat', 'Comandi Chat', 'Risposte, cooldown e anti-spam dei comandi'],
+  ['messages', 'chat', 'Messaggi Twitch', 'Messaggi automatici del bot in chat per spawn, catture e sessioni'],
   ['overlay', 'monitor', 'Overlay Designer', 'Temi, editor visuale, anteprima e simulatore dell\'overlay per OBS'],
   ['audio', 'volume', 'Audio OBS', 'Effetti sonori di spawn e cattura, riprodotti dall\'overlay in OBS'],
   ['sessions', 'calendar', 'Storico Dirette', 'Tutte le sessioni LIVE con il loro dettaglio'],

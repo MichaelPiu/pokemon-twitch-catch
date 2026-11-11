@@ -72,6 +72,33 @@ export const AUDIO_DEFAULTS = {
   maxDurationS: 10, // taglio con dissolvenza (0 = brano intero)
 };
 
+// Messaggi automatici in chat (sezione "Messaggi Twitch"). Spenti finché
+// l'amministratore non li attiva: un aggiornamento non cambia il comportamento.
+// I testi sono modelli con variabili tra graffe, sostituite solo lato server.
+export const CHAT_MESSAGE_DEFAULTS = {
+  enabled: false,
+  allowChannelAccount: false, // senza bot collegato, invia con l'account del canale
+  maxPerMinute: 6, // messaggi automatici al massimo in 60 secondi
+  events: {
+    spawn: { enabled: true, mode: 'fixed', fixedId: 'spawn-1', cooldownS: 10 },
+    shiny_spawn: { enabled: false, mode: 'fixed', fixedId: 'shiny-spawn-1', cooldownS: 10 },
+    capture: { enabled: true, mode: 'fixed', fixedId: 'capture-1', cooldownS: 5 },
+    shiny_capture: { enabled: false, mode: 'fixed', fixedId: 'shiny-capture-1', cooldownS: 5 },
+    legendary_capture: { enabled: false, mode: 'fixed', fixedId: 'legendary-capture-1', cooldownS: 5 },
+    session_start: { enabled: false, mode: 'fixed', fixedId: 'session-start-1', cooldownS: 60 },
+    session_end: { enabled: false, mode: 'fixed', fixedId: 'session-end-1', cooldownS: 60 },
+  },
+  messages: [
+    { id: 'spawn-1', event: 'spawn', enabled: true, text: '🚨 ATTENZIONE CHAT! Un {pokemon} selvatico è apparso! Rarità: {rarity}!' },
+    { id: 'shiny-spawn-1', event: 'shiny_spawn', enabled: true, text: '✨ Incredibile! È apparso un {pokemon} SHINY! Rarità: {rarity}!' },
+    { id: 'capture-1', event: 'capture', enabled: true, text: '🎉 {user} ha catturato {pokemon}! Rarità: {rarity}' },
+    { id: 'shiny-capture-1', event: 'shiny_capture', enabled: true, text: '✨ {user} ha catturato un {pokemon} SHINY!' },
+    { id: 'legendary-capture-1', event: 'legendary_capture', enabled: true, text: '🏆 {user} ha catturato il {rarity} {pokemon}!' },
+    { id: 'session-start-1', event: 'session_start', enabled: true, text: '🎮 Si parte! I Pokémon selvatici stanno per arrivare: tieni pronte le Poké Ball!' },
+    { id: 'session-end-1', event: 'session_end', enabled: true, text: '👋 Sessione finita: {captures} catture su {spawns} Pokémon apparsi. Grazie a tutti!' },
+  ],
+};
+
 export const ADMIN_DEFAULTS = {
   publicPages: { landing: true, pokedex: true, leaderboard: true },
   backup: { autoEnabled: true, hour: 4, keep: 14 },

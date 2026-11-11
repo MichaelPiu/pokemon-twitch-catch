@@ -83,5 +83,32 @@ export class ChatSender {
     }
   }
 
+  // Invio immediato con esito, per i messaggi automatici: solo con l'account
+  // indicato (nessun ripiego sull'account del canale) e dentro gli stessi limiti
+  // delle risposte del bot. Non lancia mai eccezioni.
+  async deliver(message, { role = 'bot' } = {}) {
+    try {
+      if (!this.limiterNow().hit('bot')) { this.dropped++; return { ok: false, code: 'rate_limited', message: 'Limite di messaggi del bot raggiunto' }; }
+      const broadcaster = this.creds.getToken('broadcaster');
+      const sender = this.creds.getToken(role);
+      if (!broadcaster?.userId || !sender?.userId) return { ok: false, code: 'no_sender', message: 'Nessun account per la chat' };
+      const r = await this.helix.sendChatMessage({ broadcasterId: broadcaster.userId, senderId: sender.userId, message: String(message).slice(0, 480), role });
+      if (r && r.is_sent === false) {
+        this.lastError = r.drop_reason?.message || 'Messaggio scartato da Twitch';
+        return { ok: false, code: 'dropped', message: this.lastError };
+      }
+      this.sent++;
+      return { ok: true, messageId: r?.message_id || null };
+    } catch (e) {
+      this.lastError = e.message;
+      if (role === 'bot' && (e.authInvalid || e.status === 401)) {
+        this.creds.markInvalid('bot', e.message);
+        this.log.error('Token del bot revocato o scaduto: ricollega il bot');
+      }
+      const code = e.status === 429 ? 'rate_limited' : e.status === 403 ? 'forbidden' : (e.authInvalid || e.status === 401) ? 'auth' : e.transient ? 'unreachable' : 'error';
+      return { ok: false, code, status: e.status || null, message: e.message };
+    }
+  }
+
   stats() { return { sent: this.sent, dropped: this.dropped, queued: this.queue.length, lastError: this.lastError }; }
 }

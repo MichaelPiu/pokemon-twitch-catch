@@ -28,7 +28,7 @@ Live Catch è un gioco interattivo per la tua diretta Twitch che gira interament
 10. [Importazione dei Pokémon](#importazione-dei-pokémon)
 11. [Collegamento OBS](#collegamento-obs)
 12. [Configurazione della dashboard](#configurazione-della-dashboard)
-13. [Comandi chat](#comandi-chat)
+13. [Comandi chat](#comandi-chat) · [Messaggi automatici in chat](#messaggi-automatici-in-chat)
 14. [Modalità manuale](#modalità-manuale-gioco-senza-twitch) · [Modifica del Pokédex](#modifica-manuale-del-pokédex) · [Classifiche, Hall of Fame e Stream Recap](#classifiche-hall-of-fame-e-stream-recap) · [Effetti sonori per OBS](#effetti-sonori-per-obs)
 15. [Backup](#backup) · [Ripristino](#ripristino) · [Aggiornamento](#aggiornamento)
 16. [Risoluzione problemi](#risoluzione-problemi)
@@ -51,13 +51,14 @@ Dettagli specifici per Umbrel (pubblicazione, verifiche, stato dei test): [docs/
 | Comandi | `!pokedex`, `!pokemon`, `!dex @utente`, `!ultimocatturato`, `!classifica`, `!help` — risposte, alias, cooldown, anti-spam, limite bot configurabili. |
 | Overlay OBS | `/overlay` trasparente, aggiornato via WebSocket, animazioni, coda notifiche, colori/posizione/scala configurabili, anteprima in dashboard. |
 | Statistiche | Per diretta, giornaliere, settimanali, mensili, complessive; Pokémon più apparsi/catturati/difficili, utenti più attivi, ball più usate, shiny. |
-| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Classifiche, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Overlay, Twitch, DEMO, Backup & Sistema. |
+| Dashboard | Unica, con sidebar: Panoramica, Controllo gioco, Classifiche, Statistiche, Storico dirette, Spettatori & Pokédex, Modifica Pokédex, Spawn, Pokémon, Poké Ball, Comandi, Messaggi Twitch, Overlay, Audio OBS, Twitch, DEMO, Backup & Sistema. |
 | Sicurezza | Password scrypt, cambio password obbligatorio, sessioni HttpOnly/SameSite, CSRF, rate limiting, token Twitch cifrati AES-256-GCM, redazione dei segreti nei log. |
 | Backup | Giornaliero automatico con rotazione, manuale, download/upload, ripristino guidato con backup di sicurezza, esportazione/importazione JSON. |
 | Modalità manuale | Avvia il vero motore di gioco dalla dashboard con il canale OFFLINE (prove, OBS, giochi in locale): dati reali marcati MANUAL, sessioni distinte da quelle Twitch, la diretta ha sempre la priorità. |
 | Modifica Pokédex | Ricerca, filtri, correzione, registrazione e rimozione di esemplari con anteprima delle differenze, controllo dei conflitti e registro delle modifiche. |
 | Backup di rete | Backup automatici su una cartella di rete montata (NFS/SMB tramite Umbrel o volume Docker) con manifest e checksum, verifica della connessione, ritentativi, rotazione e ripristino guidato. |
 | Classifiche | Classifica catture e classifica punti per ogni sessione (Twitch o manuale), aggiornate in tempo reale; podio, vincitore, riepilogo e Hall of Fame nell'overlay OBS, visibili finché non li nascondi; risultati congelabili; comando `!leaderboard` per broadcaster e moderatori. |
+| Messaggi Twitch | Il bot annuncia in chat gli spawn, le catture riuscite e l'inizio/fine sessione con testi tuoi (fissi o a caso da un gruppo, con variabili come `{pokemon}` e `{user}`); spenti finché non li attivi, con limiti antispam. |
 | Effetti sonori | Un suono casuale a ogni spawn e la musica di conferma a ogni cattura riuscita, riprodotti dalla stessa Browser Source dell'overlay (`/overlay`), solo dentro OBS; file audio tuoi, nella cartella dati. |
 | DEMO | Modalità di prova separata (utenti/sessioni marcati DEMO) che non tocca le statistiche reali e non è disponibile durante una diretta. |
 
@@ -433,6 +434,32 @@ Pagine pubbliche (disattivabili da *Backup & Sistema*): `/` introduzione, `/poke
 | `!leaderboard [hide\|freeze\|winner]` | Riservato a broadcaster e moderatori: mostra o nasconde la classifica nell'overlay, congela i risultati (solo broadcaster), mostra il vincitore. Vedi [Classifiche](#classifiche-hall-of-fame-e-stream-recap). |
 
 Prefisso, testi, alias, cooldown globale e per utente, anti-spam e limite di messaggi del bot si configurano in **Comandi chat**. I comandi funzionano **solo durante la diretta**.
+
+## Messaggi automatici in chat
+
+Sezione **Messaggi Twitch** della dashboard. Il bot scrive in chat quando succede qualcosa nel gioco:
+
+| Evento | Quando parte | Variabili |
+|---|---|---|
+| Spawn di un Pokémon | Nuovo Pokémon in campo | `{pokemon}` `{pokemon_lower}` `{pokemon_upper}` `{rarity}` `{shiny}` `{level}` |
+| Spawn shiny | Al posto del messaggio di spawn, se il Pokémon è shiny | come sopra |
+| Cattura riuscita | Dopo una cattura confermata dal motore | `{user}` più le variabili dello spawn |
+| Cattura shiny / leggendaria o mitica | Al posto del messaggio di cattura | come sopra |
+| Inizio sessione | Nuova diretta Twitch o sessione manuale (non dopo una ripresa o un riavvio) | `{session_type}` |
+| Fine sessione | Fine della diretta o della sessione manuale | `{session_type}` `{captures}` `{spawns}` `{participants}` `{duration}` |
+
+Esempio: `🚨 ATTENZIONE CHAT! Un {pokemon} selvatico è apparso! Rarità: {rarity}!` → `🚨 ATTENZIONE CHAT! Un Pikachu selvatico è apparso! Rarità: Raro!`
+
+- **Spenti per impostazione predefinita**: dopo l'aggiornamento non cambia nulla finché non attivi *Messaggi automatici attivi*. Interruttori separati per ogni evento (spawn e cattura anche in cima alla pagina) e per ogni singolo messaggio.
+- **Testi**: modifica, aggiungi, duplica ed elimina i messaggi; per ogni evento scegli *Sempre lo stesso* oppure *Casuale tra quelli attivi* (senza ripetere l'ultimo). Anteprima immediata con valori d'esempio e pulsante **Prova in chat**, che invia davvero il messaggio (chiede conferma e parte solo se Twitch è collegato).
+- **Eventi speciali** (shiny, leggendaria o mitica): se sono spenti o non hanno messaggi attivi si usa il messaggio generico. Per ogni spawn o cattura parte al massimo **un** messaggio.
+- **Eventi non ancora disponibili** (primo posto in classifica, record personale, evoluzione): mostrati come *non disponibile*, non si possono attivare. Il gioco non ha livelli: `{level}` resta vuoto.
+- **Quale account scrive**: il bot collegato in *Gestione Twitch*, senza nuove autorizzazioni (scope `user:write:chat`, già richiesto). Se il bot è collegato ma il token è revocato o senza permesso di scrittura, i messaggi non partono: non si ripiega sull'account del canale. Senza bot, l'account del canale si usa solo se attivi *Senza bot collegato, usa l'account del canale*.
+- **Nessun messaggio** per lanci falliti, riscatti rifiutati o duplicati, catture annullate (la cattura viene ricontrollata nel database circa 2 secondi dopo, prima dell'invio) e modalità DEMO.
+- **Twitch non collegato o non raggiungibile**: i messaggi vengono scartati, **mai** accodati per dopo. Vale anche per le sessioni manuali: si invia solo se Twitch è davvero collegato (EventSub attivo) e c'è un account che può scrivere. Il gioco continua in ogni caso: un errore di invio non blocca spawn, catture o sessioni.
+- **Antispam**: intervallo minimo per ogni tipo di messaggio, limite di messaggi automatici al minuto (predefinito 6, massimo 20), un solo messaggio per spawn e per cattura, coda di 5 messaggi al massimo, messaggi più vecchi di 20 secondi scartati, pausa di 30 secondi se Twitch risponde "troppe richieste". Restano validi anche i limiti del bot impostati in *Comandi chat*.
+- **Sicurezza**: le variabili le sostituisce il server, con dati del gioco: il nome di chi cattura viene dall'identità Twitch registrata con il riscatto (o dal nome scritto dall'amministratore nella sessione manuale), mai dal testo della chat. I testi sono testo semplice su una riga (niente HTML o codice; `/` e `.` iniziali rimossi, così un messaggio non diventa un comando di chat), al massimo 300 caratteri per modello e 450 per messaggio. Solo l'amministratore può modificarli; le modifiche finiscono nel registro operazioni; i log degli errori non contengono token.
+- **Dati**: impostazioni nel database (`admin_settings.chatMessages`), quindi nei backup. Nessuna migrazione dello schema.
 
 ## Modalità manuale (gioco senza Twitch)
 
@@ -900,6 +927,7 @@ Requisiti: Node.js ≥ 22.13. I test (`test/`) coprono:
   - recupero automatico e rinnovo del token deduplicato.
 - **Robustezza aggiuntiva** (`test/hardening.test.js`): cookie malformati (HTTP e WebSocket), backup e database con schema più recente, limiti di classifica e connessioni overlay, statistiche dopo un riscatto annullato, revisione dei temi, backup automatico e fuso orario, validazione dell'importazione JSON.
 - **Effetti sonori** (`test/audio.test.js`): scelta casuale dalla lista, nessuna ripetizione consecutiva, un evento per spawn e uno per cattura confermata, niente suoni per lanci falliti, rifiutati, duplicati o annullati, DEMO esclusa, interruttori, deduplicazione ed eventi vecchi scartati nell'overlay, una sola Browser Source `/overlay` per grafica e suoni (anche durante cambi di schermata e riconnessioni), audio solo in OBS e mai nell'anteprima della dashboard o in un browser normale, autoplay bloccato e pulsante *Sblocca audio*, dirette Twitch e sessioni manuali, OBS scollegato ed errori audio senza effetti sul gioco, persistenza delle impostazioni, whitelist dei file (niente percorsi arbitrari o collegamenti simbolici), nessun audio nella dashboard.
+- **Messaggi automatici in chat** (`test/chat-messages.test.js`): spenti per impostazione predefinita, messaggio di spawn e di cattura riuscita inviati dal bot, nome dall'identità Twitch, nessun messaggio per lanci falliti, rifiutati, duplicati, catture annullate (anche subito dopo) e DEMO, sostituzione e ripulitura delle variabili, varianti shiny e leggendaria, messaggi casuali senza ripetizioni e messaggio fisso, messaggi personalizzati e validazione, accesso solo admin con CSRF, intervallo minimo e limite al minuto, deduplicazione, bot assente, revocato o senza permesso (nessun ripiego sul canale), Twitch offline o non configurato (nessuna coda per dopo), sessione manuale con inizio e fine sessione, errori di Twitch (500, rete, 429) senza effetti sul gioco, anteprima e invio di prova, persistenza dopo il riavvio, backup e ripristino, database della 1.0.0 senza migrazioni.
 - **Ripristino con un'altra `secret.key`** (`test/credentials-key.test.js`): backup di rete e locale ripristinati su un'installazione nuova (HTTP 200), Panoramica, Twitch e Sistema funzionanti, modalità manuale, avviso Twitch scollegato, credenziali cifrate originali intatte fino al nuovo collegamento, ricollegamento e reinserimento del Client Secret.
 - **Classifiche** (`test/leaderboard.test.js`): classifiche catture e punti, bonus rarità e shiny, punteggi immutabili e regole versionate, identità Twitch (User ID, cambio nickname) e locale, separazione Twitch/MANUAL, esclusione DEMO e modifiche del Pokédex, nessun doppio conteggio, catture annullate, `!leaderboard` autorizzato e rifiutato, attivazione da dashboard e da comando, nascondi, persistenza dopo il riavvio, congelamento, sblocco, istantanee immutabili, rinomina, aggiornamento WebSocket, overlay (DOM di prova), classifica finale persistente, Hall of Fame, Stream Recap, backup e ripristino, migrazione dallo schema v4.
 - **Overlay Themes** (`test/overlay-themes.test.js`, `test/overlay-stability.test.js`):
